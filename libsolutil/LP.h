@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: GPL-3.0
 #pragma once
 
-#include <libsolutil/Common.h>
+#include <libsolutil/Numeric.h>
 
 #include <boost/rational.hpp>
 

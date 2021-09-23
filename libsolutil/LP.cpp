@@ -327,18 +327,17 @@ bool boundsToConstraints(SolvingState& _state)
 }
 
 template <class T>
-void eraseIndices(vector<T>& _data, set<size_t> const& _indices)
+void eraseIndices(vector<T>& _data, vector<bool> const& _indices)
 {
-	// TODO make this more efficient.
 	vector<T> result;
 	for (size_t i = 0; i < _data.size(); i++)
-		if (!_indices.count(i))
+		if (!_indices[i])
 			result.emplace_back(move(_data[i]));
 	_data = move(result);
 }
 
 
-void removeColumns(SolvingState& _state, set<size_t> const& _columnsToRemove)
+void removeColumns(SolvingState& _state, vector<bool> const& _columnsToRemove)
 {
 	eraseIndices(_state.bounds, _columnsToRemove);
 	for (Constraint& constraint: _state.constraints)
@@ -349,19 +348,20 @@ void removeColumns(SolvingState& _state, set<size_t> const& _columnsToRemove)
 bool extractDirectConstraints(SolvingState& _state, bool& _changed)
 {
 	// Turn constraints of the form ax <= b into an upper bound on x.
-	// TODO this could be a `vector<bool>`
-	set<size_t> constraintsToRemove;
+	vector<bool> constraintsToRemove(_state.constraints.size(), false);
+	bool needsRemoval = false;
 	for (auto const& [index, constraint]: _state.constraints | ranges::views::enumerate)
 	{
 		auto nonzero = constraint.data | ranges::views::enumerate | ranges::views::tail | ranges::views::filter(
 			[](std::pair<size_t, rational> const& _x) { return !!_x.second; }
 		);
-		// TODO we can exit early on in the loop above.
+		// TODO we can exit early on in the loop above since we only care about zero, one or more than one nonzero entries.
 		// TODO could also use iterators and exit if we can advance it twice.
 		auto numNonzero = ranges::distance(nonzero);
 		if (numNonzero > 1)
 			continue;
-		constraintsToRemove.insert(index);
+		constraintsToRemove[index] = true;
+		needsRemoval = true;
 		if (numNonzero == 0)
 		{
 			// 0 <= b or 0 = b
@@ -389,7 +389,7 @@ bool extractDirectConstraints(SolvingState& _state, bool& _changed)
 				_state.bounds[varIndex][0] = max(rational{}, bound);
 		}
 	}
-	if (!constraintsToRemove.empty())
+	if (needsRemoval)
 	{
 		_changed = true;
 		eraseIndices(_state.constraints, constraintsToRemove);
@@ -440,11 +440,13 @@ bool removeEmptyColumns(SolvingState& _state, map<string, rational>& _model, boo
 	// TODO we could assert that any variable we remove does not have conflicting bounds.
 	// (We also remove the bounds).
 
-	set<size_t> variablesToRemove;
+	vector<bool> variablesToRemove(variablesSeen.size(), false);
+	bool needsRemoval = false;
 	for (auto&& [i, seen]: variablesSeen | ranges::views::enumerate | ranges::views::tail)
 		if (!seen)
 		{
-			variablesToRemove.insert(i);
+			variablesToRemove[i] = true;
+			needsRemoval = true;
 			// TODO actually it is unbounded if _state.bounds.at(i)[1] is nullopt.
 			if (_state.bounds.at(i)[0] || _state.bounds.at(i)[1])
 				_model[_state.variableNames.at(i)] =
@@ -452,7 +454,7 @@ bool removeEmptyColumns(SolvingState& _state, map<string, rational>& _model, boo
 					*_state.bounds.at(i)[1] :
 					*_state.bounds.at(i)[0];
 		}
-	if (!variablesToRemove.empty())
+	if (needsRemoval)
 	{
 		_changed = true;
 		removeColumns(_state, variablesToRemove);
@@ -561,6 +563,8 @@ struct ProblemSplitter
 };
 
 
+/// Simplifies the solving state according to some rules (remove rows without variables, etc).
+/// @returns false if the state is determined to be infeasible during this process.
 bool simplifySolvingState(SolvingState& _state, map<string, rational>& _model)
 {
 	// - Constraints with exactly one nonzero coefficient represent "a x <= b"
