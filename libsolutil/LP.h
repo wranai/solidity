@@ -20,6 +20,7 @@
 #include <libsolutil/Numeric.h>
 
 #include <boost/rational.hpp>
+#include <libsolutil/RationalVectors.h>
 
 #include <vector>
 #include <variant>
@@ -35,7 +36,7 @@ namespace solidity::util
  */
 struct Constraint
 {
-	std::vector<boost::rational<bigint>> data;
+	LinearExpression data;
 	bool equality = false;
 
 	bool operator<(Constraint const& _other) const;

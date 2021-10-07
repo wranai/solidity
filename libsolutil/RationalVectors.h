@@ -36,119 +36,162 @@ namespace solidity::util
 
 using rational = boost::rational<bigint>;
 
-inline std::string toString(rational const& _value, size_t _paddedLength = 2)
+
+// TODO
+
+//std::string toString(rational const& _value, size_t _paddedLength = 2)
+//{
+//	std::string result;
+//	if (_value == rational(bigint(1) << 256))
+//		result = "2**256";
+//	else if (_value == rational(bigint(1) << 256) - 1)
+//		result = "2**256-1";
+//	else if (_value.denominator() == bigint(1))
+//		result = _value.numerator().str();
+//	else
+//		result = to_string(_value);
+//	if (result.length() < _paddedLength)
+//		result = std::string(_paddedLength - result.length(), ' ') + result;
+//	return result;
+//}
+
+
+/**
+ * A linear expression of the form
+ * factors[0] + factors[1] * X1 + factors[2] * X2 + ...
+ */
+struct LinearExpression
 {
-	std::string result;
-	if (_value == rational(bigint(1) << 256))
-		result = "2**256";
-	else if (_value == rational(bigint(1) << 256) - 1)
-		result = "2**256-1";
-	else if (_value.denominator() == bigint(1))
-		result = _value.numerator().str();
-	else
-		result = to_string(_value);
-	if (result.length() < _paddedLength)
-		result = std::string(_paddedLength - result.length(), ' ') + result;
-	return result;
-}
+	/// Creates the expression "_factor * X_index"
+	static LinearExpression factorForVariable(size_t _index, rational _factor)
+	{
+		LinearExpression result;
+		result.resizeAndSet(_index, move(_factor));
+		return result;
+	}
 
-/// Creates a constraint vector "_factor * x__index"
-inline std::vector<rational> factorForVariable(size_t _index, rational _factor)
-{
-	std::vector<rational> result(_index + 1);
-	result[_index] = move(_factor);
-	return result;
-}
+	rational const& get(size_t _index) const
+	{
+		static rational const zero;
+		return _index < factors.size() ? factors[_index] : zero;
+	}
 
-inline rational const& get(std::vector<rational> const& _data, size_t _index)
-{
-	static rational const zero;
-	return _index < _data.size() ? _data[_index] : zero;
-}
+	rational const& operator[](size_t _index) const
+	{
+		return factors[_index];
+	}
 
-template <class T>
-void resizeAndSet(std::vector<T>& _data, size_t _index, T _value)
-{
-	if (_data.size() <= _index)
-		_data.resize(_index + 1);
-	_data[_index] = std::move(_value);
-}
+	rational& operator[](size_t _index)
+	{
+		return factors[_index];
+	}
 
-inline std::vector<rational>& operator/=(std::vector<rational>& _data, rational const& _divisor)
-{
-	for (rational& x: _data)
-		if (x.numerator())
-			x /= _divisor;
-	return _data;
-}
+	auto begin() { return factors.begin(); }
+	auto end() { return factors.end(); }
 
-inline std::vector<rational>& operator*=(std::vector<rational>& _data, rational const& _factor)
-{
-	for (rational& x: _data)
-		if (x.numerator())
-			x *= _factor;
-	return _data;
-}
+	auto begin() const { return factors.begin(); }
+	auto end() const { return factors.end(); }
 
-inline std::vector<rational> operator*(rational const& _factor, std::vector<rational> _data)
-{
-	for (rational& x: _data)
-		if (x.numerator())
-			x *= _factor;
-	return _data;
-}
+	void resizeAndSet(size_t _index, rational _factor)
+	{
+		if (factors.size() <= _index)
+			factors.resize(_index + 1);
+		factors[_index] = move(_factor);
+	}
 
-inline std::vector<rational> operator-(std::vector<rational> const& _x, std::vector<rational> const& _y)
-{
-	std::vector<rational> result;
-	for (size_t i = 0; i < std::max(_x.size(), _y.size()); ++i)
-		result.emplace_back(get(_x, i) - get(_y, i));
-	return result;
-}
+	bool isConstant() const
+	{
+		return ranges::all_of(factors | ranges::views::tail, [](rational const& _v) { return _v.numerator() == 0; });
+	}
 
-inline std::vector<rational>& operator-=(std::vector<rational>& _x, std::vector<rational> const& _y)
-{
-	solAssert(_x.size() == _y.size(), "");
-	for (size_t i = 0; i < _x.size(); ++i)
-		if (_y[i].numerator())
-			_x[i] -= _y[i];
-	return _x;
-}
+	size_t size() const { return factors.size(); }
 
-inline std::vector<rational> add(std::vector<rational> const& _x, std::vector<rational> const& _y)
-{
-	std::vector<rational> result;
-	for (size_t i = 0; i < std::max(_x.size(), _y.size()); ++i)
-		result.emplace_back(get(_x, i) + get(_y, i));
-	return result;
-}
+	LinearExpression& operator/=(rational const& _divisor)
+	{
+		for (rational& x: factors)
+			if (x.numerator())
+				x /= _divisor;
+		return *this;
+	}
 
-inline bool isConstant(std::vector<rational> const& _x)
-{
-	return ranges::all_of(_x | ranges::views::tail, [](rational const& _v) { return _v == 0; });
-}
+	LinearExpression& operator*=(rational const& _factor)
+	{
+		for (rational& x: factors)
+			if (x.numerator())
+				x *= _factor;
+		return *this;
+	}
 
-/// Multiply two vectors where the first element of each vector is a constant factor.
-/// Only works if at most one of the vector has a nonzero element after the first.
-/// If this condition is violated, returns nullopt.
-inline std::optional<std::vector<rational>> vectorProduct(
-	std::optional<std::vector<rational>> _x,
-	std::optional<std::vector<rational>> _y
-)
-{
-	if (!_x || !_y)
-		return std::nullopt;
-	if (!isConstant(*_y))
-		swap(_x, _y);
-	if (!isConstant(*_y))
-		return std::nullopt;
+	friend LinearExpression operator*(rational const& _factor, LinearExpression _expr)
+	{
+		for (rational& x: _expr.factors)
+			if (x.numerator())
+				x *= _factor;
+		return _expr;
+	}
 
-	rational factor = _y->front();
+	LinearExpression& operator-=(LinearExpression const& _y)
+	{
+		if (size() < _y.size())
+			factors.resize(_y.size());
+		for (size_t i = 0; i < size(); ++i)
+			if (_y.factors[i].numerator())
+				factors[i] -= _y.factors[i];
+		return *this;
+	}
 
-	for (rational& element: *_x)
-		element *= factor;
-	return *_x;
-}
+	LinearExpression operator-(LinearExpression const& _y) const
+	{
+		LinearExpression result = *this;
+		result -= _y;
+		return result;
+	}
+
+	LinearExpression& operator+=(LinearExpression const& _y)
+	{
+		if (size() < _y.size())
+			factors.resize(_y.size());
+		for (size_t i = 0; i < size(); ++i)
+			if (_y.factors[i].numerator())
+				factors[i] += _y.factors[i];
+		return *this;
+	}
+
+	LinearExpression operator+(LinearExpression const& _y) const
+	{
+		LinearExpression result = *this;
+		result += _y;
+		return result;
+	}
+
+
+	/// Multiply two vectors where the first element of each vector is a constant factor.
+	/// Only works if at most one of the vector has a nonzero element after the first.
+	/// If this condition is violated, returns nullopt.
+	static std::optional<LinearExpression> vectorProduct(
+		std::optional<LinearExpression> _x,
+		std::optional<LinearExpression> _y
+	)
+	{
+		if (!_x || !_y)
+			return std::nullopt;
+		if (!_y->isConstant())
+			swap(_x, _y);
+		if (!_y->isConstant())
+			return std::nullopt;
+
+		rational const& factor = _y->get(0);
+
+		for (rational& element: _x->factors)
+			element *= factor;
+		return _x;
+	}
+
+	std::vector<rational> factors;
+};
+
+// TODO
+
 
 inline std::vector<bool>& operator|=(std::vector<bool>& _x, std::vector<bool> const& _y)
 {
