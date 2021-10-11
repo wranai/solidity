@@ -382,6 +382,30 @@ void SyntaxChecker::endVisit(ContractDefinition const&)
 	m_currentContractKind = std::nullopt;
 }
 
+bool SyntaxChecker::visit(UsingForDirective const& _usingFor)
+{
+	if (m_currentContractKind && std::holds_alternative<UsingForDirective::Asterisk>(_usingFor.functions()))
+		m_errorReporter.syntaxError(
+			1308_error,
+			_usingFor.location(),
+			"The statement 'using *...' is only allowed at file level."
+		);
+	if (!m_currentContractKind && !_usingFor.typeName())
+		m_errorReporter.syntaxError(
+			8118_error,
+			_usingFor.location(),
+			"The type has to be specified explicitly at file level (cannot use '*')."
+		);
+	if (m_currentContractKind == ContractKind::Interface)
+		m_errorReporter.syntaxError(
+			9088_error,
+			_usingFor.location(),
+			"The \"using for\" directive is not allowed inside interfaces."
+		);
+
+	return true;
+}
+
 bool SyntaxChecker::visit(FunctionDefinition const& _function)
 {
 	solAssert(_function.isFree() == (m_currentContractKind == std::nullopt), "");

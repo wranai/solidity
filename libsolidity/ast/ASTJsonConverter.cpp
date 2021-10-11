@@ -32,6 +32,7 @@
 #include <libsolutil/JSON.h>
 #include <libsolutil/UTF8.h>
 #include <libsolutil/CommonData.h>
+#include <libsolutil/Visitor.h>
 
 #include <boost/algorithm/string/join.hpp>
 
@@ -310,10 +311,27 @@ bool ASTJsonConverter::visit(InheritanceSpecifier const& _node)
 
 bool ASTJsonConverter::visit(UsingForDirective const& _node)
 {
+	using ReturnType = pair<string, Json::Value>;
+	ReturnType functions = std::visit(GenericVisitor{
+		[&](ASTPointer<IdentifierPath> const& _libraryOrFunctionOrModule) -> ReturnType
+		{
+			return make_pair("libraryName", toJson(*_libraryOrFunctionOrModule));
+		},
+		[&](vector<ASTPointer<IdentifierPath>> const& _functionList) -> ReturnType
+		{
+			return make_pair("functionList", toJson(_functionList));
+		},
+		[&](UsingForDirective::Asterisk const&) -> ReturnType
+		{
+			return make_pair("asterisk", true);
+		}
+	}, _node.functions());
+
 	setJsonNode(_node, "UsingForDirective", {
-		make_pair("libraryName", toJson(_node.libraryName())),
+		functions,
 		make_pair("typeName", _node.typeName() ? toJson(*_node.typeName()) : Json::nullValue)
 	});
+
 	return false;
 }
 

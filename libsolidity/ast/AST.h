@@ -33,6 +33,7 @@
 #include <libevmasm/Instruction.h>
 #include <libsolutil/FixedHash.h>
 #include <libsolutil/LazyInit.h>
+#include <libsolutil/Visitor.h>
 
 #include <json/json.h>
 
@@ -43,6 +44,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace solidity::yul
@@ -629,33 +631,58 @@ private:
 };
 
 /**
- * `using LibraryName for uint` will attach all functions from the library LibraryName
- * to `uint` if the first parameter matches the type. `using LibraryName for *` attaches
- * the function to any matching type.
+ * Using for directive:
+ *
+ * 1. `using LibraryName for T` will attach any function from the library `LibraryName` to the type
+ *     `T` if its first parameter matches the type `T`.
+ * 2. `using ModuleName for uint` will attach any free functions from the module `ModuleName` to the
+ *    type `T` if its the first parameter matches the type `T`.
+ * 3. `using f for T` and `using {f1, f2, ..., fn} for T` attaches the functions `f` and `f1`, ...,
+ *     `fn`, respectively to `T`; it is necessary that all of these functions have their first
+ *     parameter matching the type `T`.
+ * 4. `using <above-cases> for *` attaches to any matching type.
+ * 5. `using * for T` will attach any free function in the current source unit to the type `T` if
+ *     its first parameter matches the type `T`.
+ * 6. `using * for *` combines 4 and 5.
+ *
+ * Note: here "matches with type" means an equivalence up to an implicit conversion.
  */
 class UsingForDirective: public ASTNode
 {
 public:
+	struct Asterisk {};
+
+	using Functions = std::variant<
+		ASTPointer<IdentifierPath>, ///< using L for T;
+		std::vector<ASTPointer<IdentifierPath>>, ///< using {f1, f2} for T;
+		Asterisk ///< using * for T;
+	>;
+
 	UsingForDirective(
 		int64_t _id,
 		SourceLocation const& _location,
-		ASTPointer<IdentifierPath> _libraryName,
+		Functions _lhs,
 		ASTPointer<TypeName> _typeName
 	):
-		ASTNode(_id, _location), m_libraryName(std::move(_libraryName)), m_typeName(std::move(_typeName))
+		ASTNode(_id, _location), m_functions(_lhs), m_typeName(std::move(_typeName))
 	{
-		solAssert(m_libraryName != nullptr, "Name cannot be null.");
 	}
 
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 
-	IdentifierPath const& libraryName() const { return *m_libraryName; }
 	/// @returns the type name the library is attached to, null for `*`.
 	TypeName const* typeName() const { return m_typeName.get(); }
 
+	Functions const& functions() const { return m_functions; }
+
+	/// @returns a list of all identifiers on the left hand side, regardless
+	/// of whether they are inside `{}` or not.
+	/// Returns an empty list for asterisk.
+	std::vector<ASTPointer<IdentifierPath>> allFunctions() const;
+
 private:
-	ASTPointer<IdentifierPath> m_libraryName;
+	Functions m_functions;
 	ASTPointer<TypeName> m_typeName;
 };
 

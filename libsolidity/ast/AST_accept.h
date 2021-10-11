@@ -188,7 +188,7 @@ void UsingForDirective::accept(ASTVisitor& _visitor)
 {
 	if (_visitor.visit(*this))
 	{
-		m_libraryName->accept(_visitor);
+		listAccept(allFunctions(), _visitor);
 		if (m_typeName)
 			m_typeName->accept(_visitor);
 	}
@@ -199,7 +199,7 @@ void UsingForDirective::accept(ASTConstVisitor& _visitor) const
 {
 	if (_visitor.visit(*this))
 	{
-		m_libraryName->accept(_visitor);
+		listAccept(allFunctions(), _visitor);
 		if (m_typeName)
 			m_typeName->accept(_visitor);
 	}

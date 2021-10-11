@@ -1,6 +1,7 @@
 ### 0.8.11 (unreleased)
 
 Language Features:
+ * ``using M for Type;`` is allowed at file level and ``M`` can be a brace-enclosed list of functions, ``*`` or a module name.
 
 
 Compiler Features:

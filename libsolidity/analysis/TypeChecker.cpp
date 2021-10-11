@@ -35,6 +35,7 @@
 #include <libsolutil/Algorithms.h>
 #include <libsolutil/StringUtils.h>
 #include <libsolutil/Views.h>
+#include <libsolutil/Visitor.h>
 
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/predicate.hpp>
@@ -3457,12 +3458,48 @@ void TypeChecker::endVisit(Literal const& _literal)
 
 void TypeChecker::endVisit(UsingForDirective const& _usingFor)
 {
-	if (m_currentContract->isInterface())
-		m_errorReporter.typeError(
-			9088_error,
-			_usingFor.location(),
-			"The \"using for\" directive is not allowed inside interfaces."
-		);
+	Type const* normalizedType = nullptr;
+	if (TypeName const* typeName = _usingFor.typeName())
+	{
+		solAssert(typeName->annotation().type);
+		normalizedType = TypeProvider::withLocationIfReference(DataLocation::Storage, typeName->annotation().type);
+		solAssert(normalizedType);
+	}
+
+	for (ASTPointer<IdentifierPath> const& path: _usingFor.allFunctions())
+	{
+		solAssert(path->annotation().referencedDeclaration);
+		// No type checking if it is a module.
+		FunctionDefinition const* functionDefinition =
+			dynamic_cast<FunctionDefinition const*>(path->annotation().referencedDeclaration);
+		if (!functionDefinition)
+			continue;
+
+		solAssert(functionDefinition->type(), "");
+
+		if (functionDefinition->parameters().empty())
+			m_errorReporter.fatalTypeError(
+				4731_error,
+				path->location(),
+				"The function \"" + functionDefinition->name() + "\" " +
+				"does not have any parameters, and therefore cannot be bound to the type \"" +
+				(normalizedType ? normalizedType->toString(true) : "*") + "\"."
+			);
+
+		FunctionType const* functionType = dynamic_cast<FunctionType const&>(*functionDefinition->type()).asBoundFunction();
+		solAssert(functionType && functionType->selfType(), "");
+		if (normalizedType && !normalizedType->isImplicitlyConvertibleTo(
+				*TypeProvider::withLocationIfReference(DataLocation::Storage, functionType->selfType())
+		))
+			m_errorReporter.typeError(
+				3100_error,
+				path->location(),
+				"The function \"" + functionDefinition->name() + "\" "+
+				"cannot be bound to the type \"" + _usingFor.typeName()->annotation().type->toString() +
+				"\" because the type cannot be implicitly converted to the first argument" +
+				" of the function (\"" + functionType->selfType()->toString() + "\")."
+			);
+	}
 }
 
 void TypeChecker::checkErrorAndEventParameters(CallableDeclaration const& _callable)

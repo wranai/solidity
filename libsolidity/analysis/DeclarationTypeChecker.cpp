@@ -25,6 +25,7 @@
 #include <liblangutil/ErrorReporter.h>
 
 #include <libsolutil/Algorithms.h>
+#include <libsolutil/Visitor.h>
 
 #include <range/v3/view/transform.hpp>
 
@@ -453,12 +454,46 @@ void DeclarationTypeChecker::endVisit(VariableDeclaration const& _variable)
 
 bool DeclarationTypeChecker::visit(UsingForDirective const& _usingFor)
 {
-	ContractDefinition const* library = dynamic_cast<ContractDefinition const*>(
-		_usingFor.libraryName().annotation().referencedDeclaration
-	);
+	auto checkFunctionDefinition = [&](FunctionDefinition const* _functionDefinition, SourceLocation _location)
+	{
+		if (!_functionDefinition->isFree())
+			m_errorReporter.typeError(
+				4167_error,
+				_location,
+				"Only free functions can be bound to a type in a \"using\" statement"
+			);
+	};
 
-	if (!library || !library->isLibrary())
-		m_errorReporter.fatalTypeError(4357_error, _usingFor.libraryName().location(), "Library name expected.");
+	std::visit(util::GenericVisitor{
+		[&](ASTPointer<IdentifierPath> const& _libraryOrFunctionOrModule) {
+			Declaration const* decl = _libraryOrFunctionOrModule->annotation().referencedDeclaration;
+			auto location = _libraryOrFunctionOrModule->location();
+			solAssert(decl, "");
+			if (auto functionDefinition = dynamic_cast<FunctionDefinition const*>(decl))
+				checkFunctionDefinition(functionDefinition, location);
+			else if (auto library = dynamic_cast<ContractDefinition const*>(decl))
+			{
+				if (!library->isLibrary())
+					m_errorReporter.fatalTypeError(4357_error, location, "Library name expected.");
+			}
+			else if (dynamic_cast<ImportDirective const*>(decl))
+			{
+			}
+			else
+				m_errorReporter.fatalTypeError(8187_error, location, "Expected library name, free-function(s) name(s), module name or *." );
+		},
+		[&](vector<ASTPointer<IdentifierPath>> const& _functionList) {
+			for (auto const& path: _functionList)
+				checkFunctionDefinition(
+					dynamic_cast<FunctionDefinition const*>(path->annotation().referencedDeclaration),
+					path->location()
+				);
+		},
+		[&](UsingForDirective::Asterisk const&) { }
+	}, _usingFor.functions());
+
+	// We do not visit _usingFor.functions() because it will lead to an error since
+	// library names cannot be mentioned stand-alone.
 
 	if (_usingFor.typeName())
 		_usingFor.typeName()->accept(*this);
