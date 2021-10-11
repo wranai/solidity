@@ -962,7 +962,30 @@ ASTPointer<UsingForDirective> Parser::parseUsingDirective()
 	ASTNodeFactory nodeFactory(*this);
 
 	expectToken(Token::Using);
-	ASTPointer<IdentifierPath> library(parseIdentifierPath());
+
+	UsingForDirective::LHS lhs;
+	if (m_scanner->currentToken() == Token::LBrace)
+	{
+		UsingForDirective::FunctionList functionList;
+		advance();
+		while (true)
+		{
+			functionList.functions.emplace_back(parseIdentifierPath());
+			if (m_scanner->currentToken() != Token::Comma)
+				break;
+			advance();
+		}
+		expectToken(Token::RBrace);
+		lhs = functionList;
+	}
+	else if (m_scanner->currentToken() == Token::Mul)
+	{
+		advance();
+		lhs = UsingForDirective::Asterisk{};
+	}
+	else
+		lhs = UsingForDirective::LibraryOrFunctionOrModule{parseIdentifierPath()};
+
 	ASTPointer<TypeName> typeName;
 	expectToken(Token::For);
 	if (m_scanner->currentToken() == Token::Mul)
@@ -971,7 +994,7 @@ ASTPointer<UsingForDirective> Parser::parseUsingDirective()
 		typeName = parseTypeName();
 	nodeFactory.markEndPosition();
 	expectToken(Token::Semicolon);
-	return nodeFactory.createNode<UsingForDirective>(library, typeName);
+	return nodeFactory.createNode<UsingForDirective>(lhs, typeName);
 }
 
 ASTPointer<ModifierInvocation> Parser::parseModifierInvocation()
