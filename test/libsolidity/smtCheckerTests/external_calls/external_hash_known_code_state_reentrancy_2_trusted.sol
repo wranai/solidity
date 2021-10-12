@@ -1,6 +1,8 @@
 contract State {
-	uint x;
 	C c;
+	constructor(C _c) {
+		c = _c;
+	}
 	function f() public view returns (uint) {
 		return c.g();
 	}
@@ -15,6 +17,7 @@ contract C {
 
 	constructor() {
 		owner = msg.sender;
+		s = new State(this);
 	}
 
 	function zz() public {
@@ -26,8 +29,6 @@ contract C {
 		require(!insidef);
 		address prevOwner = owner;
 		insidef = true;
-		// s.f() cannot call zz() because it is `view`
-		// and zz modifies the state.
 		s.f();
 		assert(z == y);
 		assert(prevOwner == owner);
@@ -39,6 +40,8 @@ contract C {
 	}
 }
 // ====
-// SMTEngine: all
+// SMTContract: C
+// SMTEngine: chc
+// SMTExtCalls: trusted
 // ----
-// Info 1180: Contract invariant(s) for :C:\n((insidef || (z <= 0)) && (y <= 0))\nReentrancy property(ies) for :C:\n((!insidef || !(<errorCode> >= 2)) && (insidef' || !insidef))\n((!insidef || !(<errorCode> >= 3)) && (insidef' || !insidef))\n<errorCode> = 0 -> no errors\n<errorCode> = 2 -> Assertion failed at assert(z == y)\n<errorCode> = 3 -> Assertion failed at assert(prevOwner == owner)\n
+// Info 1180: Contract invariant(s) for :C:\n((insidef || (z <= 0)) && (y <= 0))\nReentrancy property(ies) for :State:\n((<errorCode> = 0) && ((:var 1) = (:var 3)) && (c' = c))\n<errorCode> = 0 -> no errors\n<errorCode> = 1 -> Assertion failed at assert(z == y)\n<errorCode> = 2 -> Assertion failed at assert(prevOwner == owner)\n

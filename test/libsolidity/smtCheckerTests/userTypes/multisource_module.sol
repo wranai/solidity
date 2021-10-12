@@ -17,4 +17,4 @@ contract C {
 // SMTEngine: all
 // ----
 // Warning 6328: (s2.sol:259-292): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.h()\n    C.f(5) -- internal call\n    C.f(5) -- internal call
-// Warning 6328: (s2.sol:346-377): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.h()\n    C.f(5) -- internal call\n    C.f(5) -- internal call\n    C.g(1) -- internal call\n    C.g(1) -- internal call
+// Warning 6328: (s2.sol:346-377): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.g(0)\nC.h()\n    C.f(5) -- internal call\n    C.f(5) -- internal call\n    C.g(1) -- internal call\n    C.g(1) -- internal call
