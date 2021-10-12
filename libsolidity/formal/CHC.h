@@ -111,6 +111,7 @@ private:
 
 	void visitAssert(FunctionCall const& _funCall);
 	void visitAddMulMod(FunctionCall const& _funCall) override;
+	void visitDeployment(FunctionCall const& _funCall);
 	void internalFunctionCall(FunctionCall const& _funCall);
 	void externalFunctionCall(FunctionCall const& _funCall);
 	void externalFunctionCallToTrustedCode(FunctionCall const& _funCall);
@@ -148,6 +149,10 @@ private:
 	/// @returns true if _function is Natspec annotated to be abstracted by
 	/// nondeterministic values.
 	bool abstractAsNondet(FunctionDefinition const& _function);
+
+	/// @returns true if external calls should be considered trusted.
+	/// If that's the case, their code is used if available at compile time.
+	bool encodeExternalCallsAsTrusted();
 	//@}
 
 	/// Sort helpers.
@@ -308,6 +313,10 @@ private:
 	unsigned newErrorId();
 
 	smt::SymbolicIntVariable& errorFlag();
+
+	/// Adds to the solver constraints that propagate tx.origin and
+	/// set the current contract as msg.sender.
+	void newTxConstraints();
 	//@}
 
 	/// Predicates.

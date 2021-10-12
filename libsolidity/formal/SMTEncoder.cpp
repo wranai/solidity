@@ -686,10 +686,18 @@ void SMTEncoder::endVisit(FunctionCall const& _funCall)
 	case FunctionType::Kind::ObjectCreation:
 		visitObjectCreation(_funCall);
 		return;
+	case FunctionType::Kind::Creation:
+		if (!m_settings.engine.chc || !m_settings.externalCalls.isTrusted())
+			m_errorReporter.warning(
+				8729_error,
+				_funCall.location(),
+				"Contract deployment is only supported in the trusted mode for external calls"
+				" with the CHC engine."
+			);
+		break;
 	case FunctionType::Kind::DelegateCall:
 	case FunctionType::Kind::BareCallCode:
 	case FunctionType::Kind::BareDelegateCall:
-	case FunctionType::Kind::Creation:
 	default:
 		m_errorReporter.warning(
 			4588_error,
