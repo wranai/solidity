@@ -292,6 +292,7 @@ Expression Z3Interface::fromZ3Expr(z3::expr const& _expr)
 			smtAssert(false, "");
 		return Expression(quantifierName, {fromZ3Expr(_expr.body())}, sort);
 	}
+
 	smtAssert(_expr.is_app(), "");
 	vector<Expression> arguments;
 	for (unsigned i = 0; i < _expr.num_args(); ++i)
