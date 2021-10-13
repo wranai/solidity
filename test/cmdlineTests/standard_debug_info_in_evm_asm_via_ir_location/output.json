@@ -117,7 +117,7 @@ sub_0: assembly {
       tag_19
         /* \"C\":375:378  int */
       tag_20
-      tag_6
+      tag_40
       jump\t// in
     tag_20:
         /* \"C\":79:428  contract C... */
@@ -209,18 +209,17 @@ sub_0: assembly {
       and
       tag_32
       jumpi
-    tag_33:
       0x29
       add
       swap1
       jump\t// out
     tag_32:
+      pop
+      pop
       tag_34
       tag_3
       jump\t// in
     tag_34:
-      jump(tag_33)
-    tag_5:
       0x00
       dup2
       slt
@@ -233,9 +232,8 @@ sub_0: assembly {
       dup5
       sgt
       and
-      tag_35
+      tag_39
       jumpi
-    tag_36:
       shl(0xff, 0x01)
       dup3
       swap1
@@ -249,36 +247,32 @@ sub_0: assembly {
       swap1
       jump\t// out
     tag_37:
+      pop
+      pop
+      pop
       tag_39
       tag_3
       jump\t// in
     tag_39:
-      add
-      swap1
-      jump\t// out
-    tag_35:
+      pop
+      pop
+      pop
+      pop
       tag_40
       tag_3
       jump\t// in
     tag_40:
-      jump(tag_36)
-        /* \"C\":304:341  modifier m()... */
-    tag_6:
         /* \"C\":79:428  contract C... */
       0x00
       dup1
       sload
-        /* \"C\":117:119  41 */
-      0x01
-      swap1
       sub(shl(0xff, 0x01), 0x01)
-        /* \"C\":79:428  contract C... */
       dup2
       eq
       tag_41
       jumpi
-        /* \"C\":304:341  modifier m()... */
-    tag_42:
+        /* \"C\":117:119  41 */
+      0x01
         /* \"C\":79:428  contract C... */
       add
       swap1
@@ -321,14 +315,14 @@ sub_0: assembly {
       tag_48
         /* \"C\":392:411  stateVar + this.f() */
       swap3
-      tag_5
+      tag_34
       jump\t// in
     tag_47:
         /* \"C\":414:422  immutVar */
       immutable(\"0xe4b1702d9298fee62dfeccc57d322a463ad55ca201256d01f62b45b2e1c21c10\")
         /* \"C\":392:422  stateVar + this.f() + immutVar */
       swap1
-      tag_5
+      tag_34
       jump\t// in
     tag_48:
         /* \"C\":304:341  modifier m()... */
@@ -378,7 +372,7 @@ sub_0: assembly {
       dup2
       add
       swap1
-      tag_7
+      tag_52
       jump\t// in
     tag_51:
       swap2
@@ -424,12 +418,13 @@ sub_0: assembly {
       swap1
       revert
     tag_41:
+      pop
+      pop
+      pop
       tag_52
       tag_3
       jump\t// in
     tag_52:
-      jump(tag_42)
-    tag_7:
       swap1
       dup2
       0x20
@@ -610,7 +605,7 @@ sub_0: assembly {
       tag_19
         /* \"C\":375:378  int */
       tag_20
-      tag_6
+      tag_40
       jump\t// in
     tag_20:
         /* \"D\":91:166  contract D is C(3)... */
@@ -702,18 +697,17 @@ sub_0: assembly {
       and
       tag_32
       jumpi
-    tag_33:
       0x29
       add
       swap1
       jump\t// out
     tag_32:
+      pop
+      pop
       tag_34
       tag_3
       jump\t// in
     tag_34:
-      jump(tag_33)
-    tag_5:
       0x00
       dup2
       slt
@@ -726,9 +720,8 @@ sub_0: assembly {
       dup5
       sgt
       and
-      tag_35
+      tag_39
       jumpi
-    tag_36:
       shl(0xff, 0x01)
       dup3
       swap1
@@ -742,36 +735,32 @@ sub_0: assembly {
       swap1
       jump\t// out
     tag_37:
+      pop
+      pop
+      pop
       tag_39
       tag_3
       jump\t// in
     tag_39:
-      add
-      swap1
-      jump\t// out
-    tag_35:
+      pop
+      pop
+      pop
+      pop
       tag_40
       tag_3
       jump\t// in
     tag_40:
-      jump(tag_36)
-        /* \"C\":304:341  modifier m()... */
-    tag_6:
         /* \"D\":91:166  contract D is C(3)... */
       0x00
       dup1
       sload
-        /* \"C\":117:119  41 */
-      0x01
-      swap1
       sub(shl(0xff, 0x01), 0x01)
-        /* \"D\":91:166  contract D is C(3)... */
       dup2
       eq
       tag_41
       jumpi
-        /* \"C\":304:341  modifier m()... */
-    tag_42:
+        /* \"C\":117:119  41 */
+      0x01
         /* \"D\":91:166  contract D is C(3)... */
       add
       swap1
@@ -814,14 +803,14 @@ sub_0: assembly {
       tag_48
         /* \"C\":392:411  stateVar + this.f() */
       swap3
-      tag_5
+      tag_34
       jump\t// in
     tag_47:
         /* \"C\":414:422  immutVar */
       immutable(\"0xe4b1702d9298fee62dfeccc57d322a463ad55ca201256d01f62b45b2e1c21c10\")
         /* \"C\":392:422  stateVar + this.f() + immutVar */
       swap1
-      tag_5
+      tag_34
       jump\t// in
     tag_48:
         /* \"C\":304:341  modifier m()... */
@@ -871,7 +860,7 @@ sub_0: assembly {
       dup2
       add
       swap1
-      tag_7
+      tag_52
       jump\t// in
     tag_51:
       swap2
@@ -917,12 +906,13 @@ sub_0: assembly {
       swap1
       revert
     tag_41:
+      pop
+      pop
+      pop
       tag_52
       tag_3
       jump\t// in
     tag_52:
-      jump(tag_42)
-    tag_7:
       swap1
       dup2
       0x20
