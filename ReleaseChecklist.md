@@ -26,25 +26,12 @@
  - [ ] Click the `PUBLISH RELEASE` button on the release page, creating the tag.
  - [ ] Wait for the CI runs on the tag itself.
 
-### Download Binaries
- - [ ] Take the ``solc.exe`` binary from the ``b_win_release`` run of the released commit in circle-ci and add it to the release page as ``solc-windows.exe``.
- - [ ] Take the ``solc`` binary from the ``b_osx`` run of the released commit in circle-ci and add it to the release page as ``solc-macos``.
- - [ ] Take the ``solc`` binary from the ``b_ubu_static`` run of the released commit in circle-ci and add it to the release page as ``solc-static-linux``.
- - [ ] Take the ``soljson.js`` binary from the ``b_ems`` run of the released commit in circle-ci and add it to the release page as ``soljson.js``.
-
-### Update [solc-bin](https://github.com/ethereum/solc-bin/)
- - [ ] Copy files to solc-bin:
-     ```bash
-     VERSION=0.8.4
-     COMMIT="c7e474f2"
-     SOLC_BIN="/home/me/solc-bin"
-     chmod +x solc-static-linux solc-macos
-     cp soljson.js $SOLC_BIN/bin/soljson-v$VERSION+commit.$COMMIT.js
-     cp solc-static-linux $SOLC_BIN/linux-amd64/solc-linux-amd64-v$VERSION+commit.$COMMIT
-     cp solc-macos $SOLC_BIN/macosx-amd64/solc-macosx-amd64-v$VERSION+commit.$COMMIT
-     cp solc-windows.exe $SOLC_BIN/windows-amd64/solc-windows-amd64-v$VERSION+commit.$COMMIT.exe
+### Download and Publish Binaries
+ - [ ] Take the ``github/`` directory from ``b_release_binaries`` run of the tagged commit in circle-ci and add all binaries from it to the release page.
+   Make sure it contains four binaries: ``solc-windows.exe``, ``solc-macos``, ``solc-static-linux`` and ``soljson.js``.
+ - [ ] Take the ``solc-bin/`` directory from ``b_release_binaries`` run of the tagged commit in circle-ci and add all binaries from it to solc-bin.
  - [ ] Run ``./update --reuse-hashes`` in ``solc-bin`` and verify that the script has updated ``list.js``, ``list.txt`` and ``list.json`` files correctly and that symlinks to the new release have been added in ``solc-bin/wasm/`` and ``solc-bin/emscripten-wasm32/``.
- - [ ] Create a pull request and merge.
+ - [ ] Create a pull request in solc-bin and merge.
 
 ### Homebrew and MacOS
  - [ ] Update the version and the hash (``sha256sum solidity_$VERSION.tar.gz``) in https://github.com/Homebrew/homebrew-core/blob/master/Formula/solidity.rb

@@ -1113,6 +1113,32 @@ jobs:
           # Fortunately when the artifact does not exist it just says "No artifact files found" and ignores it.
           path: all-bytecode-reports.zip
 
+  b_release_binaries:
+    <<: *base_ubuntu2004
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            apt-get update
+            apt-get install --assume-yes --no-install-recommends jq
+      - run:
+          name: Download artifacts of dependent jobs
+          command: |
+            mkdir github/
+            cd github/
+            ../scripts/solc-bin/download-circleci-binaries.sh "$CIRCLE_WORKFLOW_ID"
+      - store_artifacts:
+          path: github/
+      - run:
+          name: Rename binaries to solc-bin naming convention
+          command: |
+            mv github/ solc-bin/
+            cd solc-bin/
+            ../scripts/solc-bin/rename-circleci-binaries-for-solc-bin.sh
+      - store_artifacts:
+          path: solc-bin/
+
 workflows:
   version: 2
 
@@ -1249,6 +1275,20 @@ workflows:
             - b_bytecode_win
             - b_bytecode_osx
             - b_bytecode_ems
+
+      # Final artifacts
+      - b_release_binaries:
+          filters:
+            tags:
+              # We only need release binaries from tagged commits
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+          requires:
+            - b_ubu_static
+            - b_osx
+            - b_win_release
+            - b_ems
 
   nightly:
 
