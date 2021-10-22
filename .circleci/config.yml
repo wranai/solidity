@@ -36,7 +36,7 @@ commands:
     parameters:
       event:
         type: enum
-        enum: ["failure", "success"]
+        enum: ["failure", "success", "release"]
       condition:
         type: string
     steps:
@@ -46,6 +46,10 @@ commands:
           command: |
             [[ "<< parameters.event >>" == "failure" ]] && message=" ❌ Nightly job **${CIRCLE_JOB}** failed on **${CIRCLE_BRANCH}**. Please see [build #${CIRCLE_BUILD_NUM}](${CIRCLE_BUILD_URL}) for details."
             [[ "<< parameters.event >>" == "success" ]] && message=" ✅ Nightly job **${CIRCLE_JOB}** succeeded on **${CIRCLE_BRANCH}**. Please see [build #${CIRCLE_BUILD_NUM}](${CIRCLE_BUILD_URL}) for details."
+            [[ "<< parameters.event >>" == "release" ]] && message=" 📦 Release binaries for version **${CIRCLE_TAG}** are ready and attached as artifacts to [build #${CIRCLE_BUILD_NUM}](${CIRCLE_BUILD_URL}). **Please make sure the whole workflow succeeded before using them.**"
+
+            # The release notification only makes sense on tagged commits
+            [[ "<< parameters.event >>" == "release" ]] && { [[ $CIRCLE_TAG != "" ]] || { echo "Not a tagged commit - notification skipped."; exit 0; } }
 
             curl "https://api.gitter.im/v1/rooms/${GITTER_NOTIFY_ROOM_ID}/chatMessages" \
               --request POST \
@@ -67,6 +71,13 @@ commands:
     steps:
       - gitter_notify:
           event: success
+          condition: on_success
+
+  gitter_notify_release:
+    description: "Posts a release notification to the main room on Gitter (if not running on a PR)."
+    steps:
+      - gitter_notify:
+          event: release
           condition: on_success
 
 defaults:
@@ -1138,6 +1149,7 @@ jobs:
             ../scripts/solc-bin/rename-circleci-binaries-for-solc-bin.sh
       - store_artifacts:
           path: solc-bin/
+      - gitter_notify_release
 
 workflows:
   version: 2
