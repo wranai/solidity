@@ -490,7 +490,10 @@ void OptimizedEVMCodeTransform::operator()(CFG::BasicBlock const& _block)
 			createStackLayout(debugDataOf(_functionReturn), exitStack);
 			m_assembly.appendJump(0, AbstractAssembly::JumpType::OutOfFunction);
 		},
-		[&](CFG::BasicBlock::Terminated const&) { }
+		[&](CFG::BasicBlock::Terminated const&)
+		{
+			m_assembly.appendInstruction(evmasm::Instruction::INVALID);
+		}
 	}, _block.exit);
 	// TODO: We could assert that the last emitted assembly item terminated or was an (unconditional) jump.
 	//       But currently AbstractAssembly does not allow peeking at the last emitted assembly item.
