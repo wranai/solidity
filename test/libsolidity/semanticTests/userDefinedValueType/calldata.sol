@@ -51,11 +51,11 @@ contract C {
 // compileViaYul: also
 // ----
 // test_f() -> true
-// gas irOptimized: 122509
+// gas irOptimized: 122494
 // gas legacy: 126168
 // gas legacyOptimized: 123199
 // test_g() -> true
-// gas irOptimized: 95980
+// gas irOptimized: 95947
 // gas legacy: 101311
 // gas legacyOptimized: 96566
 // addresses(uint256): 0 -> 0x18

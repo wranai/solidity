@@ -32,6 +32,6 @@ contract C {
 // gas legacy: 23479
 // gas legacyOptimized: 23311
 // add(int256,int256): 200, 99 -> 299
-// gas irOptimized: 21764
+// gas irOptimized: 21763
 // gas legacy: 22394
 // gas legacyOptimized: 21813

@@ -50,7 +50,7 @@ contract test {
 // compileViaYul: also
 // ----
 // constructor()
-// gas irOptimized: 1924584
+// gas irOptimized: 1937347
 // gas legacy: 2602700
 // gas legacyOptimized: 1874490
 // div(int256,int256): 3141592653589793238, 88714123 -> 35412542528203691288251815328
@@ -70,11 +70,11 @@ contract test {
 // gas legacy: 23228
 // gas legacyOptimized: 22683
 // log10(int256): 3141592653589793238 -> 4971498726941338506
-// gas irOptimized: 30609
+// gas irOptimized: 30606
 // gas legacy: 32934
 // gas legacyOptimized: 30323
 // log2(int256): 3141592653589793238 -> 1651496129472318782
-// gas irOptimized: 28819
+// gas irOptimized: 28816
 // gas legacy: 31067
 // gas legacyOptimized: 28426
 // mul(int256,int256): 3141592653589793238, 88714123 -> 278703637
@@ -90,6 +90,6 @@ contract test {
 // gas legacy: 22802
 // gas legacyOptimized: 22422
 // benchmark(int256): 3141592653589793238 -> 998882724338592125, 1000000000000000000, 1000000000000000000
-// gas irOptimized: 36630
+// gas irOptimized: 36620
 // gas legacy: 36673
 // gas legacyOptimized: 34729
