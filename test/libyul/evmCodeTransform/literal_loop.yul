@@ -29,6 +29,8 @@ object "main" {
 //   0x00
 //     /* "":86:117   */
 //   return
+//     /* "":22:120   */
+//   invalid
 // stop
 //
 // sub_0: assembly {
