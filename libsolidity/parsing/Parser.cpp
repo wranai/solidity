@@ -117,6 +117,9 @@ ASTPointer<SourceUnit> Parser::parse(CharStream& _charStream)
 			case Token::Type:
 				nodes.push_back(parseUserDefinedValueTypeDefinition());
 				break;
+			case Token::Using:
+				nodes.push_back(parseUsingDirective(true));
+				break;
 			case Token::Function:
 				nodes.push_back(parseFunctionDefinition(true));
 				break;
@@ -391,7 +394,7 @@ ASTPointer<ContractDefinition> Parser::parseContractDefinition()
 			else if (currentTokenValue == Token::Event)
 				subNodes.push_back(parseEventDefinition());
 			else if (currentTokenValue == Token::Using)
-				subNodes.push_back(parseUsingDirective());
+				subNodes.push_back(parseUsingDirective(false));
 			else
 				fatalParserError(9182_error, "Function, variable, struct or modifier declaration expected.");
 		}
@@ -956,45 +959,51 @@ ASTPointer<ErrorDefinition> Parser::parseErrorDefinition()
 	return nodeFactory.createNode<ErrorDefinition>(name, move(nameLocation), documentation, parameters);
 }
 
-ASTPointer<UsingForDirective> Parser::parseUsingDirective()
+ASTPointer<UsingForDirective> Parser::parseUsingDirective(bool _fileLevel)
 {
 	RecursionGuard recursionGuard(*this);
 	ASTNodeFactory nodeFactory(*this);
 
 	expectToken(Token::Using);
 
-	UsingForDirective::LHS lhs;
+	UsingForDirective::Functions functions;
 	if (m_scanner->currentToken() == Token::LBrace)
 	{
-		UsingForDirective::FunctionList functionList;
+		vector<ASTPointer<IdentifierPath>> functionList;
 		advance();
 		while (true)
 		{
-			functionList.functions.emplace_back(parseIdentifierPath());
+			functionList.emplace_back(parseIdentifierPath());
 			if (m_scanner->currentToken() != Token::Comma)
 				break;
 			advance();
 		}
 		expectToken(Token::RBrace);
-		lhs = functionList;
+		functions = move(functionList);
 	}
 	else if (m_scanner->currentToken() == Token::Mul)
 	{
+		if (!_fileLevel)
+			fatalParserError(1308_error, "The statement 'using *...' is only allowed at file level.");
 		advance();
-		lhs = UsingForDirective::Asterisk{};
+		functions = UsingForDirective::Asterisk{};
 	}
 	else
-		lhs = UsingForDirective::LibraryOrFunctionOrModule{parseIdentifierPath()};
+		functions = parseIdentifierPath();
 
 	ASTPointer<TypeName> typeName;
 	expectToken(Token::For);
 	if (m_scanner->currentToken() == Token::Mul)
+	{
+		if (_fileLevel)
+			fatalParserError(8115_error, "The type has to be specified explicitly at file level (cannot use '*').");
 		advance();
+	}
 	else
 		typeName = parseTypeName();
 	nodeFactory.markEndPosition();
 	expectToken(Token::Semicolon);
-	return nodeFactory.createNode<UsingForDirective>(lhs, typeName);
+	return nodeFactory.createNode<UsingForDirective>(functions, typeName);
 }
 
 ASTPointer<ModifierInvocation> Parser::parseModifierInvocation()

@@ -3488,15 +3488,14 @@ void TypeChecker::endVisit(UsingForDirective const& _usingFor)
 			);
 	};
 
-	UsingForDirective::LHS const& lhs = _usingFor.lhs();
 	std::visit(util::GenericVisitor{
-		[&](UsingForDirective::LibraryOrFunctionOrModule const& _libraryOrFunctionOrModule) {
-			Declaration const* declaration = _libraryOrFunctionOrModule.name->annotation().referencedDeclaration;
+		[&](ASTPointer<IdentifierPath> const& _libraryOrFunctionOrModule) {
+			Declaration const* declaration = _libraryOrFunctionOrModule->annotation().referencedDeclaration;
 			if (auto functionDefinition = dynamic_cast<FunctionDefinition const*>(declaration))
-				checkFunctionDefinition(*functionDefinition, _libraryOrFunctionOrModule.name->location());
+				checkFunctionDefinition(*functionDefinition, _libraryOrFunctionOrModule->location());
 		},
-		[&](UsingForDirective::FunctionList const& _functionList) {
-			for (auto const& path: _functionList.functions)
+		[&](vector<ASTPointer<IdentifierPath>> const& _functionList) {
+			for (auto const& path: _functionList)
 			{
 				solAssert(path, "");
 				FunctionDefinition const* functionDefinition =
@@ -3505,20 +3504,11 @@ void TypeChecker::endVisit(UsingForDirective const& _usingFor)
 				checkFunctionDefinition(*functionDefinition, path->location());
 			}
 		},
-		[&](UsingForDirective::Asterisk const&) {
-			// TODO: when file level "using-for" is enabled, rewrite the error message.
-			// and potentially make it non-fatal.
-			if (m_currentContract)
-				m_errorReporter.fatalTypeError(
-					1308_error,
-					_usingFor.location(),
-					"\"using * for T;\" cannot be used inside contract definition"
-				);
-		},
-	}, lhs);
+		[&](UsingForDirective::Asterisk const&) { },
+	}, _usingFor.functions());
 
-	// TODO remove this when file level stuff is enabled.
-	if (m_currentContract->isInterface())
+	// TODO can we move this to an earlier stage?
+	if (m_currentContract && m_currentContract->isInterface())
 		m_errorReporter.typeError(
 			9088_error,
 			_usingFor.location(),

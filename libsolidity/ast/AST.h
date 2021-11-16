@@ -650,39 +650,22 @@ private:
 class UsingForDirective: public ASTNode
 {
 public:
-	/// `using A for T;`
-	struct LibraryOrFunctionOrModule
-	{
-		ASTPointer<IdentifierPath> name;
-	};
-	/// `using {f1, f2, ..., fn} for T;`
-	struct FunctionList
-	{
-		std::vector<ASTPointer<IdentifierPath>> functions;
-	};
-	/// `using * for T;`
 	struct Asterisk {};
 
-	using LHS = std::variant<LibraryOrFunctionOrModule, FunctionList, Asterisk>;
+	using Functions = std::variant<
+		ASTPointer<IdentifierPath>, ///< using L for T;
+		std::vector<ASTPointer<IdentifierPath>>, ///< using {f1, f2} for T;
+		Asterisk ///< using * for T;
+	>;
 
 	UsingForDirective(
 		int64_t _id,
 		SourceLocation const& _location,
-		LHS _lhs,
+		Functions _lhs,
 		ASTPointer<TypeName> _typeName
 	):
-		ASTNode(_id, _location), m_lhs(_lhs), m_typeName(std::move(_typeName))
+		ASTNode(_id, _location), m_functions(_lhs), m_typeName(std::move(_typeName))
 	{
-		std::visit(util::GenericVisitor{
-			[&](LibraryOrFunctionOrModule const& _l) {
-				solAssert(_l.name, "Name cannot be null");
-			},
-			[&](FunctionList const& _f) {
-				for (auto ptr: _f.functions)
-					solAssert(ptr, "Name cannot be null");
-			},
-			[&](Asterisk const&) {},
-		}, m_lhs);
 	}
 
 	void accept(ASTVisitor& _visitor) override;
@@ -691,11 +674,15 @@ public:
 	/// @returns the type name the library is attached to, null for `*`.
 	TypeName const* typeName() const { return m_typeName.get(); }
 
-	LHS const& lhs() const { return m_lhs; }
+	Functions const& functions() const { return m_functions; }
+
+	/// @returns a list of all identifiers on the left hand side, regardless
+	/// of whether they are inside `{}` or not.
+	/// Returns an empty list for asterisk.
+	std::vector<ASTPointer<IdentifierPath>> allFunctions() const;
 
 private:
-	LHS m_lhs;
-	// TODO Change this to a variant of a TypeName and Asterisk.
+	Functions m_functions;
 	ASTPointer<TypeName> m_typeName;
 };
 

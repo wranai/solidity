@@ -104,7 +104,7 @@ private:
 	ASTPointer<ModifierDefinition> parseModifierDefinition();
 	ASTPointer<EventDefinition> parseEventDefinition();
 	ASTPointer<ErrorDefinition> parseErrorDefinition();
-	ASTPointer<UsingForDirective> parseUsingDirective();
+	ASTPointer<UsingForDirective> parseUsingDirective(bool _fileLevel);
 	ASTPointer<ModifierInvocation> parseModifierInvocation();
 	ASTPointer<Identifier> parseIdentifier();
 	ASTPointer<Identifier> parseIdentifierOrAddress();

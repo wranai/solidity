@@ -13,4 +13,4 @@ contract C {
     }
 }
 // ----
-// TypeError 1308: (B:30-47): "using * for T;" cannot be used inside contract definition
+// ParserError 1308: (B:36-37): The statement 'using *...' is only allowed at file level.

@@ -348,23 +348,24 @@ ASTPointer<InheritanceSpecifier> ASTJsonImporter::createInheritanceSpecifier(Jso
 
 ASTPointer<UsingForDirective> ASTJsonImporter::createUsingForDirective(Json::Value const& _node)
 {
-	// TODO do we need backwards compatibility for AST JSON?
-	UsingForDirective::LHS lhs;
-	if (_node.isMember("libraryOrFunctionOrModuleName"))
-		lhs = UsingForDirective::LibraryOrFunctionOrModule{createIdentifierPath(_node["libraryName"])};
+	// TODO document the change in the changelog or try to make it backwards-compatible.
+	UsingForDirective::Functions functions;
+	if (_node.isMember("libraryName"))
+		functions = createIdentifierPath(_node["libraryName"]);
 	else if (_node.isMember("functionList"))
 	{
-		vector<ASTPointer<IdentifierPath>> functions;
+		vector<ASTPointer<IdentifierPath>> functionList;
 		Json::Value array = _node["functionList"];
+		// TODO for each?
 		for (Json::ArrayIndex i = 0; i < array.size(); ++i)
-			functions.emplace_back(createIdentifierPath(array[i]));
-		lhs = UsingForDirective::FunctionList{functions};
+			functionList.emplace_back(createIdentifierPath(array[i]));
+		functions = move(functionList);
 	}
 	else if (_node.isMember("asterisk"))
-		lhs = UsingForDirective::Asterisk{};
+		functions = UsingForDirective::Asterisk{};
 	return createASTNode<UsingForDirective>(
 		_node,
-		lhs,
+		functions,
 		_node["typeName"].isNull() ? nullptr  : convertJsonToASTNode<TypeName>(_node["typeName"])
 	);
 }

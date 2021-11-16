@@ -312,35 +312,23 @@ bool ASTJsonConverter::visit(InheritanceSpecifier const& _node)
 bool ASTJsonConverter::visit(UsingForDirective const& _node)
 {
 	using ReturnType = pair<string, Json::Value>;
-	ReturnType lhs = std::visit(GenericVisitor{
-		[&](UsingForDirective::LibraryOrFunctionOrModule const& _libraryOrFunctionOrModule) -> ReturnType
+	ReturnType functions = std::visit(GenericVisitor{
+		[&](ASTPointer<IdentifierPath> const& _libraryOrFunctionOrModule) -> ReturnType
 		{
-			solAssert(_libraryOrFunctionOrModule.name, "");
-			return
-				make_pair(
-					"libraryOrFunctionOrModuleName",
-					toJson(*_libraryOrFunctionOrModule.name)
-				);
+			return make_pair("libraryName", toJson(*_libraryOrFunctionOrModule));
 		},
-		[&](UsingForDirective::FunctionList const& _functionList) -> ReturnType
+		[&](vector<ASTPointer<IdentifierPath>> const& _functionList) -> ReturnType
 		{
-			Json::Value functions{Json::arrayValue};
-			for (auto path: _functionList.functions)
-			{
-				solAssert(path && path->annotation().referencedDeclaration, "");
-				functions.append(path->annotation().referencedDeclaration->name());
-			}
-
-			return make_pair("functionList", functions);
+			return make_pair("functionList", toJson(_functionList));
 		},
 		[&](UsingForDirective::Asterisk const&) -> ReturnType
 		{
-			return make_pair("asterisk", Json::nullValue);
+			return make_pair("asterisk", true);
 		}
-	}, _node.lhs());
+	}, _node.functions());
 
 	setJsonNode(_node, "UsingForDirective", {
-		lhs,
+		functions,
 		make_pair("typeName", _node.typeName() ? toJson(*_node.typeName()) : Json::nullValue)
 	});
 

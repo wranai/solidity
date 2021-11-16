@@ -331,12 +331,16 @@ Type const* Type::fullEncodingType(bool _inLibraryCall, bool _encoderV2, bool) c
 MemberList::MemberMap Type::boundFunctions(Type const& _type, ASTNode const& _scope)
 {
 	vector<UsingForDirective const*> usingForDirectives;
-	if (auto const* sourceUnit = dynamic_cast<SourceUnit const*>(&_scope))
+	SourceUnit const* sourceUnit = dynamic_cast<SourceUnit const*>(&_scope);
+	if (sourceUnit)
 		usingForDirectives += ASTNode::filteredNodes<UsingForDirective>(sourceUnit->nodes());
 	else if (auto const* contract = dynamic_cast<ContractDefinition const*>(&_scope))
+	{
+		sourceUnit = &contract->sourceUnit();
 		usingForDirectives +=
 			contract->usingForDirectives() +
 			ASTNode::filteredNodes<UsingForDirective>(contract->sourceUnit().nodes());
+	}
 	else
 		solAssert(false, "");
 
@@ -345,47 +349,39 @@ MemberList::MemberMap Type::boundFunctions(Type const& _type, ASTNode const& _sc
 	if (auto refType = dynamic_cast<ReferenceType const*>(&_type))
 		typeLocation = refType->location();
 
-	set<Declaration const*> seenFunctions;
+	set<pair<string, Declaration const*>> seenFunctions;
 	MemberList::MemberMap members;
 
 	auto addFunction = [&](
 		FunctionDefinition const& _function,
-		optional<ASTString> _name = nullopt,
-		bool _shouldAssertImplicitConversion = false
+		optional<string> _name = {}
 	)
 	{
-		Type const* type =
+		if (!_name)
+			_name = _function.name();
+		Type const* functionType =
 			_function.libraryFunction() ? _function.typeViaContractName() : _function.type();
-		solAssert(type, "");
+		solAssert(functionType, "");
 		FunctionType const* asBoundFunction =
-			dynamic_cast<FunctionType const&>(*type).asBoundFunction();
+			dynamic_cast<FunctionType const&>(*functionType).asBoundFunction();
 		solAssert(asBoundFunction, "");
 
-		bool isImplicitlyConvertible = _type.isImplicitlyConvertibleTo(*asBoundFunction->selfType());
-		// For `using free_function for ...;` and `using {free_functions, ...} for ...;`
-		// TypeChecker should have already checked for implicit conversion.
-		if (_shouldAssertImplicitConversion)
-			solAssert(isImplicitlyConvertible, "");
-
-		if (isImplicitlyConvertible)
-			if (!seenFunctions.count(&_function))
-			{
-				seenFunctions.insert(&_function);
-				if (_name.has_value())
-					members.emplace_back(&_function, asBoundFunction, *_name);
-				else
-					members.emplace_back(&_function, asBoundFunction);
-			}
+		if (_type.isImplicitlyConvertibleTo(*asBoundFunction->selfType()))
+			if (seenFunctions.insert(make_pair(*_name, &_function)).second)
+				members.emplace_back(&_function, asBoundFunction, *_name);
 	};
 
 	auto addFreeFunctionsFromSourceUnit = [&](SourceUnit const& _sourceUnit)
 	{
-		vector<FunctionDefinition const*> functionDefinitions = ASTNode::filteredNodes<FunctionDefinition>(_sourceUnit.nodes());
-		for (auto function: functionDefinitions)
-		{
-			solAssert(function && function->isFree() && function->type(), "");
-			addFunction(*function);
-		}
+		for (auto&& [name, declarations]: *_sourceUnit.annotation().exportedSymbols)
+			for (Declaration const* declaration: declarations)
+			{
+				if (auto function = dynamic_cast<FunctionDefinition const*>(declaration))
+				{
+					solAssert(function && function->isFree() && function->type(), "");
+					addFunction(*function, name);
+				}
+			}
 	};
 
 	for (UsingForDirective const* ufd: usingForDirectives)
@@ -394,7 +390,8 @@ MemberList::MemberMap Type::boundFunctions(Type const& _type, ASTNode const& _sc
 		// directive applies.
 		// Further down, we check more detailed for each function if `_type` is
 		// convertible to the function parameter type.
-		if (ufd->typeName() &&
+		if (
+			ufd->typeName() &&
 			*TypeProvider::withLocationIfReference(typeLocation, &_type, true) !=
 			*TypeProvider::withLocationIfReference(
 				typeLocation,
@@ -404,16 +401,15 @@ MemberList::MemberMap Type::boundFunctions(Type const& _type, ASTNode const& _sc
 		)
 			continue;
 
-		UsingForDirective::LHS const& lhs = ufd->lhs();
-
 		std::visit(util::GenericVisitor{
-			[&](UsingForDirective::LibraryOrFunctionOrModule const& _libraryOrFunctionOrModule)
+			[&](ASTPointer<IdentifierPath> const& _libraryOrFunctionOrModule)
 			{
-				Declaration const* decl = _libraryOrFunctionOrModule.name->annotation().referencedDeclaration;
+				Declaration const* decl = _libraryOrFunctionOrModule->annotation().referencedDeclaration;
 
-				solAssert(decl, "");
+				solAssert(decl);
 				if (auto library = dynamic_cast<ContractDefinition const*>(decl))
 				{
+					solAssert(library->isLibrary());
 					for (FunctionDefinition const* function: library->definedFunctions())
 					{
 						if (!function->isOrdinary() || !function->isVisibleAsLibraryMember() || function->parameters().empty())
@@ -422,42 +418,37 @@ MemberList::MemberMap Type::boundFunctions(Type const& _type, ASTNode const& _sc
 					}
 				}
 				else if (auto function = dynamic_cast<FunctionDefinition const*>(decl))
-				{
-					solAssert(_libraryOrFunctionOrModule.name->path().size() >= 1, "");
-					addFunction(*function, _libraryOrFunctionOrModule.name->path().back(), true);
-				}
+					addFunction(*function, _libraryOrFunctionOrModule->path().back());
 				else if (auto module = dynamic_cast<ImportDirective const*>(decl))
 				{
 					SourceUnit const* sourceUnit = module->annotation().sourceUnit;
-					solAssert(sourceUnit, "");
+					solAssert(sourceUnit);
 					addFreeFunctionsFromSourceUnit(*sourceUnit);
 				}
+				else
+					solAssert(false);
 			},
-			[&](UsingForDirective::FunctionList const& _functionList)
+			[&](vector<ASTPointer<IdentifierPath>> const& _functionList)
 			{
-				for (auto const& pathPointer: _functionList.functions)
+				for (auto const& pathPointer: _functionList)
 				{
 					solAssert(
 						pathPointer &&
-						pathPointer->annotation().referencedDeclaration &&
-						pathPointer->path().size() >= 1,
-						""
+						pathPointer->annotation().referencedDeclaration
 					);
 					addFunction(
 						dynamic_cast<FunctionDefinition const&>(
 							*pathPointer->annotation().referencedDeclaration
 						),
-						pathPointer->path().back(),
-						true
+						pathPointer->path().back()
 					);
 				}
 			},
 			[&](UsingForDirective::Asterisk const&)
 			{
-				// TODO change this when using statement is allowed at file level.
-				solAssert(false, "");
+				addFreeFunctionsFromSourceUnit(*sourceUnit);
 			}
-		}, lhs);
+		}, ufd->functions());
 	}
 
 	return members;
