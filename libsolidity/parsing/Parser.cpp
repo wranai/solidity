@@ -966,8 +966,9 @@ ASTPointer<UsingForDirective> Parser::parseUsingDirective()
 
 	expectToken(Token::Using);
 
-	UsingForDirective::Functions functions;
-	if (m_scanner->currentToken() == Token::LBrace)
+	vector<ASTPointer<IdentifierPath>> functions;
+	bool const usesBraces = m_scanner->currentToken() == Token::LBrace;
+	if (usesBraces)
 	{
 		vector<ASTPointer<IdentifierPath>> functionList;
 		advance();
@@ -981,13 +982,8 @@ ASTPointer<UsingForDirective> Parser::parseUsingDirective()
 		expectToken(Token::RBrace);
 		functions = move(functionList);
 	}
-	else if (m_scanner->currentToken() == Token::Mul)
-	{
-		advance();
-		functions = UsingForDirective::Asterisk{};
-	}
 	else
-		functions = parseIdentifierPath();
+		functions.emplace_back(parseIdentifierPath());
 
 	ASTPointer<TypeName> typeName;
 	expectToken(Token::For);
@@ -997,7 +993,7 @@ ASTPointer<UsingForDirective> Parser::parseUsingDirective()
 		typeName = parseTypeName();
 	nodeFactory.markEndPosition();
 	expectToken(Token::Semicolon);
-	return nodeFactory.createNode<UsingForDirective>(functions, typeName);
+	return nodeFactory.createNode<UsingForDirective>(move(functions), usesBraces, typeName);
 }
 
 ASTPointer<ModifierInvocation> Parser::parseModifierInvocation()

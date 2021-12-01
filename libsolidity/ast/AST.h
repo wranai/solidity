@@ -635,15 +635,10 @@ private:
  *
  * 1. `using LibraryName for T` will attach any function from the library `LibraryName` to the type
  *     `T` if its first parameter matches the type `T`.
- * 2. `using ModuleName for uint` will attach any free functions from the module `ModuleName` to the
- *    type `T` if its the first parameter matches the type `T`.
- * 3. `using f for T` and `using {f1, f2, ..., fn} for T` attaches the functions `f` and `f1`, ...,
+ * 2. `using {f1, f2, ..., fn} for T` attaches the functions `f1`, `f2`, ...,
  *     `fn`, respectively to `T`; it is necessary that all of these functions have their first
  *     parameter matching the type `T`.
- * 4. `using <above-cases> for *` attaches to any matching type.
- * 5. `using * for T` will attach any free function in the current source unit to the type `T` if
- *     its first parameter matches the type `T`.
- * 6. `using * for *` combines 4 and 5.
+ * 3. `using LibraryName for *` attaches to any matching type.
  *
  * Note: here "matches with type" means an equivalence up to an implicit conversion.
  */
@@ -652,19 +647,14 @@ class UsingForDirective: public ASTNode
 public:
 	struct Asterisk {};
 
-	using Functions = std::variant<
-		ASTPointer<IdentifierPath>, ///< using L for T;
-		std::vector<ASTPointer<IdentifierPath>>, ///< using {f1, f2} for T;
-		Asterisk ///< using * for T;
-	>;
-
 	UsingForDirective(
 		int64_t _id,
 		SourceLocation const& _location,
-		Functions _lhs,
+		std::vector<ASTPointer<IdentifierPath>> _functions,
+		bool _usesBraces,
 		ASTPointer<TypeName> _typeName
 	):
-		ASTNode(_id, _location), m_functions(_lhs), m_typeName(std::move(_typeName))
+		ASTNode(_id, _location), m_functions(_functions), m_usesBraces(_usesBraces), m_typeName(std::move(_typeName))
 	{
 	}
 
@@ -674,15 +664,12 @@ public:
 	/// @returns the type name the library is attached to, null for `*`.
 	TypeName const* typeName() const { return m_typeName.get(); }
 
-	Functions const& functions() const { return m_functions; }
-
-	/// @returns a list of all identifiers on the left hand side, regardless
-	/// of whether they are inside `{}` or not.
-	/// Returns an empty list for asterisk.
-	std::vector<ASTPointer<IdentifierPath>> allFunctions() const;
+	std::vector<ASTPointer<IdentifierPath>> const& functions() const { return m_functions; }
+	bool usesBraces() const { return m_usesBraces; }
 
 private:
-	Functions m_functions;
+	std::vector<ASTPointer<IdentifierPath>> m_functions;
+	bool m_usesBraces;
 	ASTPointer<TypeName> m_typeName;
 };
 

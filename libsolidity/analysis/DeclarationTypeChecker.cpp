@@ -454,43 +454,36 @@ void DeclarationTypeChecker::endVisit(VariableDeclaration const& _variable)
 
 bool DeclarationTypeChecker::visit(UsingForDirective const& _usingFor)
 {
-	auto checkFunctionDefinition = [&](FunctionDefinition const* _functionDefinition, SourceLocation _location)
+	if (_usingFor.usesBraces())
 	{
-		if (!_functionDefinition->isFree())
-			m_errorReporter.typeError(
-				4167_error,
-				_location,
-				"Only free functions can be bound to a type in a \"using\" statement"
-			);
-	};
-
-	std::visit(util::GenericVisitor{
-		[&](ASTPointer<IdentifierPath> const& _libraryOrFunctionOrModule) {
-			Declaration const* decl = _libraryOrFunctionOrModule->annotation().referencedDeclaration;
-			auto location = _libraryOrFunctionOrModule->location();
-			solAssert(decl, "");
-			if (auto functionDefinition = dynamic_cast<FunctionDefinition const*>(decl))
-				checkFunctionDefinition(functionDefinition, location);
-			else if (auto library = dynamic_cast<ContractDefinition const*>(decl))
+		for (ASTPointer<IdentifierPath> const& function: _usingFor.functions())
+			if (auto functionDefinition = dynamic_cast<FunctionDefinition const*>(function.get()))
 			{
-				if (!library->isLibrary())
-					m_errorReporter.fatalTypeError(4357_error, location, "Library name expected.");
-			}
-			else if (dynamic_cast<ImportDirective const*>(decl))
-			{
+				if (!functionDefinition->isFree() && !(
+					dynamic_cast<ContractDefinition const*>(functionDefinition->scope()) &&
+					dynamic_cast<ContractDefinition const*>(functionDefinition->scope())->isLibrary()
+				))
+					m_errorReporter.typeError(
+						4167_error,
+						function->location(),
+						"Only free functions and library functions can be bound to a type in a \"using\" statement"
+					);
 			}
 			else
-				m_errorReporter.fatalTypeError(8187_error, location, "Expected library name, free-function(s) name(s), module name or *." );
-		},
-		[&](vector<ASTPointer<IdentifierPath>> const& _functionList) {
-			for (auto const& path: _functionList)
-				checkFunctionDefinition(
-					dynamic_cast<FunctionDefinition const*>(path->annotation().referencedDeclaration),
-					path->location()
-				);
-		},
-		[&](UsingForDirective::Asterisk const&) { }
-	}, _usingFor.functions());
+				m_errorReporter.fatalTypeError(8187_error, function->location(), "Expected function name." );
+	}
+	else
+	{
+		ContractDefinition const* library = dynamic_cast<ContractDefinition const*>(
+			_usingFor.functions().front()->annotation().referencedDeclaration
+		);
+		if (!library || !library->isLibrary())
+			m_errorReporter.fatalTypeError(
+				4357_error,
+				_usingFor.functions().front()->location(),
+				"Library name expected. If you want to attach a function, use '{...}'."
+			);
+	}
 
 	// We do not visit _usingFor.functions() because it will lead to an error since
 	// library names cannot be mentioned stand-alone.

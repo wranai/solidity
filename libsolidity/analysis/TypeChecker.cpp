@@ -3466,10 +3466,10 @@ void TypeChecker::endVisit(UsingForDirective const& _usingFor)
 		solAssert(normalizedType);
 	}
 
-	for (ASTPointer<IdentifierPath> const& path: _usingFor.allFunctions())
+	for (ASTPointer<IdentifierPath> const& path: _usingFor.functions())
 	{
 		solAssert(path->annotation().referencedDeclaration);
-		// No type checking if it is a module.
+		// No type checking if it is a library.
 		FunctionDefinition const* functionDefinition =
 			dynamic_cast<FunctionDefinition const*>(path->annotation().referencedDeclaration);
 		if (!functionDefinition)

@@ -346,21 +346,6 @@ TypeDeclarationAnnotation& UserDefinedValueTypeDefinition::annotation() const
 	return initAnnotation<TypeDeclarationAnnotation>();
 }
 
-vector<ASTPointer<IdentifierPath>> UsingForDirective::allFunctions() const
-{
-	vector<ASTPointer<IdentifierPath>> result;
-	visit(util::GenericVisitor{
-		[&](ASTPointer<IdentifierPath> const& _libraryOrFunctionOrModule) {
-			result.emplace_back(_libraryOrFunctionOrModule);
-		},
-		[&](vector<ASTPointer<IdentifierPath>> const& _functionList) {
-			result = _functionList;
-		},
-		[&](Asterisk const&) {},
-	}, m_functions);
-	return result;
-}
-
 Type const* StructDefinition::type() const
 {
 	solAssert(annotation().recursive.has_value(), "Requested struct type before DeclarationTypeChecker.");

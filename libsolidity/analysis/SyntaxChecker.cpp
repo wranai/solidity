@@ -384,12 +384,6 @@ void SyntaxChecker::endVisit(ContractDefinition const&)
 
 bool SyntaxChecker::visit(UsingForDirective const& _usingFor)
 {
-	if (m_currentContractKind && std::holds_alternative<UsingForDirective::Asterisk>(_usingFor.functions()))
-		m_errorReporter.syntaxError(
-			1308_error,
-			_usingFor.location(),
-			"The statement 'using *...' is only allowed at file level."
-		);
 	if (!m_currentContractKind && !_usingFor.typeName())
 		m_errorReporter.syntaxError(
 			8118_error,

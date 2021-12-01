@@ -311,26 +311,15 @@ bool ASTJsonConverter::visit(InheritanceSpecifier const& _node)
 
 bool ASTJsonConverter::visit(UsingForDirective const& _node)
 {
-	using ReturnType = pair<string, Json::Value>;
-	ReturnType functions = std::visit(GenericVisitor{
-		[&](ASTPointer<IdentifierPath> const& _libraryOrFunctionOrModule) -> ReturnType
-		{
-			return make_pair("libraryName", toJson(*_libraryOrFunctionOrModule));
-		},
-		[&](vector<ASTPointer<IdentifierPath>> const& _functionList) -> ReturnType
-		{
-			return make_pair("functionList", toJson(_functionList));
-		},
-		[&](UsingForDirective::Asterisk const&) -> ReturnType
-		{
-			return make_pair("asterisk", true);
-		}
-	}, _node.functions());
-
-	setJsonNode(_node, "UsingForDirective", {
-		functions,
+	std::vector<pair<string, Json::Value>> attributes = {
 		make_pair("typeName", _node.typeName() ? toJson(*_node.typeName()) : Json::nullValue)
-	});
+	};
+	if (_node.usesBraces())
+		attributes.emplace_back("functionList", toJson(_node.functions()));
+	else
+		attributes.emplace_back("libraryName", toJson(*_node.functions().front()));
+
+	setJsonNode(_node, "UsingForDirective", move(attributes));
 
 	return false;
 }
