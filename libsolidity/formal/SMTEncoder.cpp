@@ -1301,11 +1301,11 @@ void SMTEncoder::endVisit(Return const& _return)
 
 bool SMTEncoder::visit(MemberAccess const& _memberAccess)
 {
+	createExpr(_memberAccess);
+
 	auto const& accessType = _memberAccess.annotation().type;
 	if (accessType->category() == Type::Category::Function)
 		return true;
-
-	createExpr(_memberAccess);
 
 	Expression const* memberExpr = innermostTuple(_memberAccess.expression());
 
