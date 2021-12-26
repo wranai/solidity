@@ -112,13 +112,161 @@ tuple<CheckResult, Expression, CHCSolverInterface::CexGraph> CHCSmtLib2Interface
 	if (boost::starts_with(response, "sat"))
 		result = CheckResult::UNSATISFIABLE;
 	else if (boost::starts_with(response, "unsat"))
-		result = CheckResult::SATISFIABLE;
+		return {CheckResult::SATISFIABLE, Expression (true), parseCounterexample(response)};
 	else if (boost::starts_with(response, "unknown"))
 		result = CheckResult::UNKNOWN;
 	else
 		result = CheckResult::ERROR;
 
 	return {result, Expression(true), {}};
+}
+
+namespace
+{
+
+string readToken(string const& _data, size_t _pos)
+{
+	string r;
+	while (_pos < _data.size())
+	{
+		char c = _data[_pos++];
+		if (iswspace(unsigned(c)) || c == ',' || c == '(' || c == ')')
+			break;
+		r += c;
+	}
+	return r;
+}
+
+size_t skipWhitespaces(string const& _data, size_t _pos)
+{
+	while (_pos < _data.size() && iswspace(unsigned(_data[_pos])))
+	{
+		++_pos;
+	}
+
+	return _pos;
+}
+
+/// @param _data here is always going to be either
+/// - term
+/// - term(args)
+pair<smtutil::Expression, size_t> parseExpression(string const& _data)
+{
+	cout << "PARSING DATA " << _data << endl;
+	size_t pos = skipWhitespaces(_data, 0);
+	cout << "SKIPPED " << pos << endl;
+
+	string fname = readToken(_data, pos);
+	cout << "READ TOKEN " << fname << endl;
+	pos += fname.size();
+
+	if (pos >= _data.size() || _data[pos] != '(')
+	{
+		cout << "RETURNING WITH " << fname << " " << pos << endl;
+		if (fname == "true" || fname == "false")
+			return {Expression(fname, {}, SortProvider::boolSort), pos};
+		return {Expression(fname, {}, SortProvider::uintSort), pos};
+	}
+
+	smtAssert(_data[pos] == '(');
+
+	cout << "READING ARGS FOR " << fname << endl;
+	vector<Expression> exprArgs;
+	do
+	{
+		++pos;
+		auto [arg, size] = parseExpression(_data.substr(pos));
+		pos += size;
+		exprArgs.emplace_back(move(arg));
+		smtAssert(_data[pos] == ',' || _data[pos] == ')');
+	} while (_data[pos] == ',');
+
+	smtAssert(_data[pos] == ')');
+	++pos;
+
+	if (fname == "const")
+		fname = "const_array";
+
+	cout << "RETURNING AFTER READING ARGS WITH " << fname << " " << pos << " " << exprArgs.size() << endl;
+	return {Expression(fname, move(exprArgs), SortProvider::uintSort), pos};
+}
+
+}
+
+CHCSolverInterface::CexGraph CHCSmtLib2Interface::parseCounterexample(string const& _result)
+{
+	CHCSolverInterface::CexGraph cexGraph;
+
+	string accumulated{};
+	swap(m_accumulatedOutput, accumulated);
+	solAssert(m_smtlib2, "");
+	for (auto const& decl: m_smtlib2->userSorts() | ranges::views::values)
+		write(decl);
+
+	map<unsigned, string> predicates;
+	map<unsigned, unsigned> idx2Pred;
+
+	unsigned assertions = 0;
+	for (auto&& line: _result | ranges::views::split('\n') | ranges::to<vector<string>>())
+	{
+		cout << "LINE IS " << line << endl;
+		string firstDelimiter = ": ";
+		string secondDelimiter = " -> ";
+
+		size_t f = line.find(firstDelimiter);
+		if (f != string::npos)
+		{
+			string id = line.substr(0, f);
+			string rest = line.substr(f + firstDelimiter.size());
+
+			cout << "ID IS " << id << endl;
+			cout << "REST IS " << rest << endl;
+
+			size_t s = rest.find(secondDelimiter);
+			string pred;
+			string adj;
+			if (s == string::npos)
+				pred = rest;
+			else
+			{
+				pred = rest.substr(0, s);
+				adj = rest.substr(s + secondDelimiter.size());
+			}
+
+			if (pred == "FALSE")
+				pred = "false";
+
+			cout << "PRED IS " << pred << endl;
+			cout << "ADJ IS " << adj << endl;
+
+			write("(assert " + pred + "))");
+			unsigned iid = unsigned(stoi(id));
+
+			cout << "IID IS " << iid << endl;
+
+			predicates[iid] = pred;
+			idx2Pred[assertions++] = iid;
+
+			vector<unsigned> children;
+			for (auto&& v: adj | ranges::views::split(',') | ranges::to<vector<string>>())
+			{
+				cout << "V IS " << v << endl;
+				unsigned iv = unsigned(stoi(v));
+				cout << "IV IS " << iv << endl;
+				children.emplace_back(unsigned(stoi(v)));
+			}
+
+			auto [expr, size] = parseExpression(pred);
+
+			cout << "PREDNAME IS " << expr.name << endl;
+			cout << "NARGS IS " << expr.arguments.size() << endl;
+
+			cexGraph.nodes.emplace(iid, move(expr));
+			cexGraph.edges.emplace(iid, move(children));
+		}
+	}
+
+	return cexGraph;
 }
 
 void CHCSmtLib2Interface::declareVariable(string const& _name, SortPointer const& _sort)
