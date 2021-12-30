@@ -5,6 +5,7 @@ Language Features:
 
 
 Compiler Features:
+ * Language Server: Allow full filesystem access to language server.
 
 
 
