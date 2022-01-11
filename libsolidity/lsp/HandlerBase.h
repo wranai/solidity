@@ -55,7 +55,7 @@ public:
 
 	/// @returns source unit name and the line column position as extracted
 	/// from the JSON-RPC parameters.
-	std::pair<std::string, langutil::LineColumn> extractSourceUnitNameAndPosition(Json::Value const& _params) const;
+	std::pair<std::string, langutil::LineColumn> extractSourceUnitNameAndLineColumn(Json::Value const& _params) const;
 
 	langutil::CharStreamProvider const& charStreamProvider() const noexcept { return m_server.charStreamProvider(); }
 	FileRepository const& fileRepository() const noexcept { return m_server.fileRepository(); }

@@ -61,7 +61,7 @@ vector<Declaration const*> allAnnotatedDeclarations(Expression const* _expressio
 	return output;
 }
 
-optional<SourceLocation> declarationPosition(Declaration const* _declaration)
+optional<SourceLocation> declarationLocation(Declaration const* _declaration)
 {
 	if (!_declaration)
 		return nullopt;

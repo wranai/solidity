@@ -66,7 +66,7 @@ optional<SourceLocation> HandlerBase::parsePosition(string const& _sourceUnitNam
 	return nullopt;
 }
 
-pair<string, LineColumn> HandlerBase::extractSourceUnitNameAndPosition(Json::Value const& _args) const
+pair<string, LineColumn> HandlerBase::extractSourceUnitNameAndLineColumn(Json::Value const& _args) const
 {
 	string const uri = _args["textDocument"]["uri"].asString();
 	string const sourceUnitName = fileRepository().clientPathToSourceUnitName(uri);

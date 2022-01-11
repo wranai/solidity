@@ -17,7 +17,7 @@ using namespace std;
 
 void GotoDefinition::operator()(MessageID _id, Json::Value const& _args)
 {
-	auto const [sourceUnitName, lineColumn] = extractSourceUnitNameAndPosition(_args);
+	auto const [sourceUnitName, lineColumn] = extractSourceUnitNameAndLineColumn(_args);
 
 	ASTNode const* sourceNode = m_server.requestASTNode(sourceUnitName, lineColumn);
 	vector<SourceLocation> locations;
@@ -25,13 +25,13 @@ void GotoDefinition::operator()(MessageID _id, Json::Value const& _args)
 	{
 		// Handles all expressions that can have one or more declaration annotation.
 		for (auto const* declaration: allAnnotatedDeclarations(expression))
-			if (auto location = declarationPosition(declaration); location.has_value())
+			if (auto location = declarationLocation(declaration); location.has_value())
 				locations.emplace_back(move(location.value()));
 	}
 	else if (auto const* identifierPath = dynamic_cast<IdentifierPath const*>(sourceNode))
 	{
 		if (auto const* declaration = identifierPath->annotation().referencedDeclaration)
-			if (auto location = declarationPosition(declaration); location.has_value())
+			if (auto location = declarationLocation(declaration); location.has_value())
 				locations.emplace_back(move(location.value()));
 	}
 	else if (auto const* importDirective = dynamic_cast<ImportDirective const*>(sourceNode))
@@ -42,7 +42,7 @@ void GotoDefinition::operator()(MessageID _id, Json::Value const& _args)
 	}
 	else if (auto const* declaration = dynamic_cast<Declaration const*>(sourceNode))
 	{
-		if (auto location = declarationPosition(declaration); location.has_value())
+		if (auto location = declarationLocation(declaration); location.has_value())
 			locations.emplace_back(move(location.value()));
 	}
 
