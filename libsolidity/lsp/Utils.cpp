@@ -39,8 +39,6 @@ Json::Value toJsonRange(LineColumn const& _start, LineColumn const& _end)
 	return json;
 }
 
-#define DEBUGLOG(message) (std::ofstream("/tmp/solc.log", std::ios::app) << (message) << std::endl)
-
 vector<Declaration const*> allAnnotatedDeclarations(Expression const* _expression)
 {
 	vector<Declaration const*> output;
@@ -48,14 +46,16 @@ vector<Declaration const*> allAnnotatedDeclarations(Expression const* _expressio
 	if (auto const* identifier = dynamic_cast<Identifier const*>(_expression))
 	{
 		Declaration const* referencedDeclaration = identifier->annotation().referencedDeclaration;
-		DEBUGLOG(fmt::format("referenced declaration: {} {}", typeid(*referencedDeclaration).name(), referencedDeclaration->name()));
-		output.push_back(referencedDeclaration);
-		//output.push_back(identifier->annotation().referencedDeclaration);
-		output += identifier->annotation().candidateDeclarations;
+		if (referencedDeclaration)
+		{
+			lspDebug(fmt::format("referenced declaration: {} {}", typeid(*referencedDeclaration).name(), referencedDeclaration->name()));
+			output.push_back(referencedDeclaration);
+		}
 	}
 	else if (auto const* memberAccess = dynamic_cast<MemberAccess const*>(_expression))
 	{
-		output.push_back(memberAccess->annotation().referencedDeclaration);
+		if (memberAccess->annotation().referencedDeclaration)
+			output.push_back(memberAccess->annotation().referencedDeclaration);
 	}
 
 	return output;

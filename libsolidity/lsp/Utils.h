@@ -9,6 +9,13 @@
 #include <optional>
 #include <vector>
 
+#if !defined(NDEBUG)
+#include <fstream>
+#define lspDebug(message) (std::ofstream("/tmp/solc.log", std::ios::app) << (message) << std::endl)
+#else
+#define lspDebug(message) do {} while (0)
+#endif
+
 namespace solidity::langutil
 {
 class CharStreamProvider;

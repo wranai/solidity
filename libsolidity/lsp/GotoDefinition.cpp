@@ -10,44 +10,17 @@
 #include <string>
 #include <vector>
 
-using std::make_shared;
-using std::move;
-using std::string;
-using std::vector;
-
 using namespace solidity::frontend;
 using namespace solidity::langutil;
-
-#define DEBUGLOG(message) (std::ofstream("/tmp/solc.log", std::ios::app) << (message) << std::endl)
-
-namespace solidity::lsp
-{
+using namespace solidity::lsp;
+using namespace std;
 
 void GotoDefinition::operator()(MessageID _id, Json::Value const& _args)
 {
-	string const uri = _args["textDocument"]["uri"].asString();
-	string const sourceUnitName = fileRepository().clientPathToSourceUnitName(uri);
-	if (!fileRepository().sourceUnits().count(sourceUnitName))
-		BOOST_THROW_EXCEPTION(
-			RequestError(ErrorCode::RequestFailed) <<
-			errinfo_comment("Unknown file: " + uri)
-		);
+	auto const [sourceUnitName, lineColumn] = extractSourceUnitNameAndPosition(_args);
 
-	auto const lineColumn = parseLineColumn(_args["position"]);
-	if (!lineColumn)
-		BOOST_THROW_EXCEPTION(
-			RequestError(ErrorCode::RequestFailed) <<
-			errinfo_comment(fmt::format(
-				"Unknown position {line}:{column} in file: {file}",
-				fmt::arg("line", lineColumn.value().line),
-				fmt::arg("column", lineColumn.value().column),
-				fmt::arg("file", sourceUnitName)
-			))
-		);
-
-	ASTNode const* sourceNode = m_server.requestASTNode(sourceUnitName, lineColumn.value());
+	ASTNode const* sourceNode = m_server.requestASTNode(sourceUnitName, lineColumn);
 	vector<SourceLocation> locations;
-	DEBUGLOG(fmt::format("GotoDefinition: source node: {}", typeid(*sourceNode).name()));
 	if (auto const* expression = dynamic_cast<Expression const*>(sourceNode))
 	{
 		// Handles all expressions that can have one or more declaration annotation.
@@ -77,6 +50,4 @@ void GotoDefinition::operator()(MessageID _id, Json::Value const& _args)
 	for (SourceLocation const& location: locations)
 		reply.append(toJson(location));
 	client().reply(_id, reply);
-}
-
 }
