@@ -36,9 +36,9 @@ public:
 		Json::Value const& _range
 	) const;
 
-	langutil::CharStreamProvider const& charStreamProvider() const noexcept { return m_server.charStreamProvider(); };
-	FileRepository const& fileRepository() const noexcept { return m_server.fileRepository(); };
-	Transport& client() const noexcept { return m_server.client(); };
+	langutil::CharStreamProvider const& charStreamProvider() const noexcept { return m_server.charStreamProvider(); }
+	FileRepository const& fileRepository() const noexcept { return m_server.fileRepository(); }
+	Transport& client() const noexcept { return m_server.client(); }
 
 	LanguageServer& m_server;
 };
