@@ -18,12 +18,16 @@
 
 #include <libsmtutil/CHCSmtLib2Interface.h>
 
+#include <libsolutil/Algorithms.h>
 #include <libsolutil/Keccak256.h>
+
+#include <z3++.h>
 
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <range/v3/view.hpp>
+#include <range/v3/algorithm/for_each.hpp>
 
 #include <array>
 #include <fstream>
@@ -110,7 +114,7 @@ tuple<CheckResult, Expression, CHCSolverInterface::CexGraph> CHCSmtLib2Interface
 	CheckResult result;
 	// TODO proper parsing
 	if (boost::starts_with(response, "sat"))
-		result = CheckResult::UNSATISFIABLE;
+		return {CheckResult::UNSATISFIABLE, parseInvariants(response), {}};
 	else if (boost::starts_with(response, "unsat"))
 		return {CheckResult::SATISFIABLE, Expression (true), parseCounterexample(response)};
 	else if (boost::starts_with(response, "unknown"))
@@ -152,17 +156,13 @@ size_t skipWhitespaces(string const& _data, size_t _pos)
 /// - term(args)
 pair<smtutil::Expression, size_t> parseExpression(string const& _data)
 {
-	cout << "PARSING DATA " << _data << endl;
 	size_t pos = skipWhitespaces(_data, 0);
-	cout << "SKIPPED " << pos << endl;
 
 	string fname = readToken(_data, pos);
-	cout << "READ TOKEN " << fname << endl;
 	pos += fname.size();
 
 	if (pos >= _data.size() || _data[pos] != '(')
 	{
-		cout << "RETURNING WITH " << fname << " " << pos << endl;
 		if (fname == "true" || fname == "false")
 			return {Expression(fname, {}, SortProvider::boolSort), pos};
 		return {Expression(fname, {}, SortProvider::uintSort), pos};
@@ -170,7 +170,6 @@ pair<smtutil::Expression, size_t> parseExpression(string const& _data)
 
 	smtAssert(_data[pos] == '(');
 
-	cout << "READING ARGS FOR " << fname << endl;
 	vector<Expression> exprArgs;
 	do
 	{
@@ -187,8 +186,80 @@ pair<smtutil::Expression, size_t> parseExpression(string const& _data)
 	if (fname == "const")
 		fname = "const_array";
 
-	cout << "RETURNING AFTER READING ARGS WITH " << fname << " " << pos << " " << exprArgs.size() << endl;
 	return {Expression(fname, move(exprArgs), SortProvider::uintSort), pos};
+}
+
+/// @param _data here is always going to be either
+/// - term
+/// - (term arg1 arg2 ... argk), where each arg is an sexpr.
+pair<smtutil::Expression, size_t> parseSExpression(string const& _data)
+{
+	size_t pos = skipWhitespaces(_data, 0);
+
+	vector<Expression> exprArgs;
+	string fname;
+	if (_data[pos] != '(')
+	{
+		fname = readToken(_data, pos);
+		pos += fname.size();
+	}
+	else
+	{
+		++pos;
+		fname = readToken(_data, pos);
+		pos += fname.size();
+		do
+		{
+			auto [symbArg, newPos] = parseSExpression(_data.substr(pos));
+			exprArgs.emplace_back(move(symbArg));
+			pos += newPos;
+		} while (_data[pos] != ')');
+		++pos;
+	}
+
+	if (fname == "")
+		fname = "var-decl";
+	else if (fname == "const")
+		fname = "const_array";
+
+	if (fname == "true" || fname == "false")
+		return {Expression(fname, {}, SortProvider::boolSort), pos};
+
+	return {Expression(fname, move(exprArgs), SortProvider::uintSort), pos};
+}
+
+smtutil::Expression parseDefineFun(string const& _data)
+{
+	auto [defineFun, pos] = parseSExpression(_data);
+
+	vector<Expression> newArgs;
+	Expression const& curArgs = defineFun.arguments.at(1);
+	smtAssert(curArgs.name == "var-decl");
+	for (auto&& curArg: curArgs.arguments)
+		newArgs.emplace_back(move(curArg));
+
+	Expression predExpr{defineFun.arguments.at(0).name, move(newArgs), SortProvider::boolSort};
+
+	Expression& invExpr = defineFun.arguments.at(3);
+
+	solidity::util::BreadthFirstSearch<Expression*> bfs{{&invExpr}};
+	bfs.run([&](auto&& _expr, auto&& _addChild) {
+		if (_expr->name == "=")
+		{
+			smtAssert(_expr->arguments.size() == 2);
+			auto check = [](string const& _name) {
+				return boost::starts_with(_name, "mapping") && boost::ends_with(_name, "length");
+			};
+			if (check(_expr->arguments.at(0).name) || check(_expr->arguments.at(1).name))
+				*_expr = Expression(true);
+		}
+		for (auto& arg: _expr->arguments)
+			_addChild(&arg);
+	});
+
+	Expression eq{"=", {move(predExpr), move(defineFun.arguments.at(3))}, SortProvider::boolSort};
+
+	return eq;
 }
 
 }
@@ -203,13 +274,8 @@ CHCSolverInterface::CexGraph CHCSmtLib2Interface::parseCounterexample(string con
 	for (auto const& decl: m_smtlib2->userSorts() | ranges::views::values)
 		write(decl);
 
-	map<unsigned, string> predicates;
-	map<unsigned, unsigned> idx2Pred;
-
-	unsigned assertions = 0;
 	for (auto&& line: _result | ranges::views::split('\n') | ranges::to<vector<string>>())
 	{
-		cout << "LINE IS " << line << endl;
 		string firstDelimiter = ": ";
 		string secondDelimiter = " -> ";
 
@@ -218,9 +284,6 @@ CHCSolverInterface::CexGraph CHCSmtLib2Interface::parseCounterexample(string con
 		{
 			string id = line.substr(0, f);
 			string rest = line.substr(f + firstDelimiter.size());
-
-			cout << "ID IS " << id << endl;
-			cout << "REST IS " << rest << endl;
 
 			size_t s = rest.find(secondDelimiter);
 			string pred;
@@ -236,30 +299,13 @@ CHCSolverInterface::CexGraph CHCSmtLib2Interface::parseCounterexample(string con
 			if (pred == "FALSE")
 				pred = "false";
 
-			cout << "PRED IS " << pred << endl;
-			cout << "ADJ IS " << adj << endl;
-
-			write("(assert " + pred + "))");
 			unsigned iid = unsigned(stoi(id));
-
-			cout << "IID IS " << iid << endl;
-
-			predicates[iid] = pred;
-			idx2Pred[assertions++] = iid;
 
 			vector<unsigned> children;
 			for (auto&& v: adj | ranges::views::split(',') | ranges::to<vector<string>>())
-			{
-				cout << "V IS " << v << endl;
-				unsigned iv = unsigned(stoi(v));
-				cout << "IV IS " << iv << endl;
 				children.emplace_back(unsigned(stoi(v)));
-			}
 
 			auto [expr, size] = parseExpression(pred);
-
-			cout << "PREDNAME IS " << expr.name << endl;
-			cout << "NARGS IS " << expr.arguments.size() << endl;
 
 			cexGraph.nodes.emplace(iid, move(expr));
 			cexGraph.edges.emplace(iid, move(children));
@@ -267,6 +313,43 @@ CHCSolverInterface::CexGraph CHCSmtLib2Interface::parseCounterexample(string con
 	}
 
 	return cexGraph;
+}
+
+Expression CHCSmtLib2Interface::parseInvariants(string const& _result)
+{
+	/*
+	string z3Input;
+	for (auto const& decl: m_smtlib2->userSorts() | ranges::views::values)
+		z3Input += decl + '\n';
+	*/
+
+	vector<Expression> eqs;
+	for (auto&& line: _result | ranges::views::split('\n') | ranges::to<vector<string>>())
+	{
+		if (!boost::starts_with(line, "(define-fun"))
+			continue;
+
+		eqs.emplace_back(parseDefineFun(line));
+		//z3Input += line + '\n';
+	}
+
+	//z3Input += "(assert true)";
+
+	//cout << "; z3 input:" << endl;
+	//cout << z3Input << endl;
+
+	/*
+	z3::context ctx;
+
+	auto expr = ctx.parse_string(z3Input.c_str());
+
+	cout << "; parsed z3 expr is:" << endl;
+	cout << expr << endl;
+	*/
+
+	Expression conj{"and", move(eqs), SortProvider::boolSort};
+	return conj;
+	//return Expression(true);
 }
 
 void CHCSmtLib2Interface::declareVariable(string const& _name, SortPointer const& _sort)
@@ -348,6 +431,24 @@ void CHCSmtLib2Interface::write(string _data)
 
 string CHCSmtLib2Interface::querySolver(string const& _input)
 {
+	/*
+	return "sat\n\
+(define-fun block_5_function_f__12_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G Int) (H state_type) (I Int)) Bool true)\n\
+(define-fun block_6_f_11_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G Int) (H state_type) (I Int)) Bool (or (not (= C abi_type)) (and (and (= I G) (= H F)) (= A 0))))\n\
+(define-fun block_7_return_function_f__12_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G Int) (H state_type) (I Int)) Bool (and (and (and (>= I 0) (<= I 115792089237316195423570985008687907853269984665640564039457584007913129639935)) (or (and (exists ((var0 Bool)) (not var0)) (>= I 10)) (<= I 9))) (or (not (= C abi_type)) (and (and (= I G) (= H F)) (= A 0)))))\n\
+(define-fun block_8_function_f__12_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G Int) (H state_type) (I Int)) Bool (and (and (exists ((var0 Bool)) (and (and (and (>= I 0) (<= I 115792089237316195423570985008687907853269984665640564039457584007913129639935)) (and (not var0) (>= I 10))) (not var0))) (or (not (= C abi_type)) (and (= I G) (= H F)))) (= 1 A)))\n\
+(define-fun block_9_function_f__12_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G Int) (H state_type) (I Int)) Bool true)\n\
+(define-fun contract_initializer_10_C_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G state_type) (H Int) (I Int)) Bool (or (not (= C abi_type)) (and (and (= I H) (= G F)) (= A 0))))\n\
+(define-fun contract_initializer_after_init_12_C_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G state_type) (H Int) (I Int)) Bool (or (not (= C abi_type)) (and (and (= I H) (= G F)) (= A 0))))\n\
+(define-fun contract_initializer_entry_11_C_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G state_type) (H Int) (I Int)) Bool (or (not (= C abi_type)) (and (and (= I H) (= G F)) (= A 0))))\n\
+(define-fun error_target_3_0 () Bool false)\n\
+(define-fun implicit_constructor_entry_13_C_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G state_type) (H Int) (I Int)) Bool (and (>= (select (balances G) B) (msg.value E)) (and (and (and (= 0 A) (= G F)) (= 0 H)) (= 0 I))))\n\
+(define-fun interface_0_C_13_0 ((A Int) (B abi_type) (C crypto_type) (D state_type) (E Int)) Bool (= E 0))\n\
+(define-fun nondet_interface_1_C_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E state_type) (F Int) (G state_type) (H Int)) Bool true)\n\
+(define-fun summary_3_function_f__12_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G Int) (H state_type) (I Int)) Bool (and (and (= H F) (= I G)) (or (and (= A 1) (and (<= G 115792089237316195423570985008687907853269984665640564039457584007913129639935) (>= G 10))) (= A 0))))\n\
+(define-fun summary_4_function_f__12_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G Int) (H state_type) (I Int)) Bool (and (and (exists ((var0 Int)) (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (and (= (select (bytes_tuple_accessor_array (msg.data E)) 3) 240) (= (select (bytes_tuple_accessor_array (msg.data E)) 2) 31)) (= (select (bytes_tuple_accessor_array (msg.data E)) 1) 18)) (= (select (bytes_tuple_accessor_array (msg.data E)) 0) 38)) (= (msg.sig E) 638722032)) (= (msg.value E) 0)) (= (state_type (store (balances F) B (+ (select (balances F) B) var0))) H)) (>= (bytes_tuple_accessor_length (msg.data E)) 4)) (<= (tx.gasprice E) 115792089237316195423570985008687907853269984665640564039457584007913129639935)) (>= (tx.gasprice E) 0)) (<= (tx.origin E) 1461501637330902918203684832716283019655932542975)) (>= (tx.origin E) 0)) (<= (msg.sender E) 1461501637330902918203684832716283019655932542975)) (>= (msg.sender E) 0)) (<= (block.timestamp E) 115792089237316195423570985008687907853269984665640564039457584007913129639935)) (>= (block.timestamp E) 0)) (<= (block.number E) 115792089237316195423570985008687907853269984665640564039457584007913129639935)) (>= (block.number E) 0)) (<= (block.gaslimit E) 115792089237316195423570985008687907853269984665640564039457584007913129639935)) (>= (block.gaslimit E) 0)) (<= (block.difficulty E) 115792089237316195423570985008687907853269984665640564039457584007913129639935)) (>= (block.difficulty E) 0)) (<= (block.coinbase E) 1461501637330902918203684832716283019655932542975)) (>= (block.coinbase E) 0)) (<= (block.chainid E) 115792089237316195423570985008687907853269984665640564039457584007913129639935)) (>= (block.chainid E) 0)) (<= (block.basefee E) 115792089237316195423570985008687907853269984665640564039457584007913129639935)) (>= (block.basefee E) 0)) (>= var0 0)) (>= (- (* (- 1) (select (balances F) B)) var0) (- 115792089237316195423570985008687907853269984665640564039457584007913129639935))) (>= (+ (select (balances F) B) var0) 0))) (or (and (= A 1) (and (<= G 115792089237316195423570985008687907853269984665640564039457584007913129639935) (>= G 10))) (= A 0))) (= G I)))\n\
+(define-fun summary_constructor_2_C_13_0 ((A Int) (B Int) (C abi_type) (D crypto_type) (E tx_type) (F state_type) (G state_type) (H Int) (I Int)) Bool (and (= G F) (and (and (and (= A 0) (= H 0)) (= I 0)) (and (>= (select (balances F) B) (msg.value E)) (= (balances F) (balances F))))))\n";
+	*/
 	util::h256 inputHash = util::keccak256(_input);
 	if (m_queryResponses.count(inputHash))
 		return m_queryResponses.at(inputHash);

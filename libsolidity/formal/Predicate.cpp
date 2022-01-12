@@ -496,7 +496,8 @@ optional<string> Predicate::expressionToString(smtutil::Expression const& _expr,
 				if (_expr.name == "0")
 					return "0x0";
 				// For some reason the code below returns "0x" for "0".
-				return toHex(toCompactBigEndian(bigint(_expr.name)), HexPrefix::Add, HexCase::Lower);
+				//return toHex(toCompactBigEndian(bigint(_expr.name)), HexPrefix::Add, HexCase::Lower);
+				return formatNumberReadable(bigint(_expr.name));
 			}
 			catch (out_of_range const&)
 			{
@@ -506,7 +507,8 @@ optional<string> Predicate::expressionToString(smtutil::Expression const& _expr,
 			}
 		}
 
-		return _expr.name;
+		return formatNumberReadable(bigint(_expr.name));
+		//return _expr.name;
 	}
 	if (smt::isBool(*_type))
 	{

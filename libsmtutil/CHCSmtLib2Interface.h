@@ -70,6 +70,8 @@ private:
 
 	CHCSolverInterface::CexGraph parseCounterexample(std::string const& _result);
 
+	Expression parseInvariants(std::string const& _result);
+
 	/// Used to access toSmtLibSort, SExpr, and handle variables.
 	std::unique_ptr<SMTLib2Interface> m_smtlib2;
 
