@@ -40,7 +40,7 @@ else
 	BUILD_DIR="$1"
 fi
 
-apt-get update && apt-get install lz4
+apt-get update && apt-get install lz4 wabt binaryen
 
 WORKSPACE=/root/project
 
